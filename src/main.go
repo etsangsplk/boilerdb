@@ -21,7 +21,9 @@ import (
 
 
 
+
 func main() {
+
 	runtime.GOMAXPROCS(8)
 	database := db.NewDataBase()
 	ht := new(hash_table.HashTablePlugin)
@@ -29,7 +31,7 @@ func main() {
 
 	st := time.Now()
 
-	n := 1000000
+	n := 10
 
 
 
@@ -38,8 +40,8 @@ func main() {
 		cmd.Args[0] = string(i)
 		//cmd.Args[0] = fmt.Sprintf("k%d", i)
 
-		_, _ = database.HandleCommand(cmd.Key, &cmd)
-		//fmt.Println(r, e)
+		r, e := database.HandleCommand(cmd.Key, &cmd)
+		fmt.Println(r, e)
 
 	}
 
