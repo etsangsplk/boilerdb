@@ -29,13 +29,13 @@ func HandleHSET(cmd *db.Command, entry *db.Entry) *db.Result {
 	//fmt.Printf("%p %p %s\n", &obj, &(obj.table), obj.table)
 	obj.table[cmd.Args[0]] = cmd.Args[1]
 
-	return &db.Result{Content: "OK" }
+	return db.NewResult("OK")
 
 }
 func HandleHGET(cmd *db.Command, entry *db.Entry) *db.Result {
 
 	tbl := entry.Value.(*HashTableStruct)
-	return &db.Result{Content: tbl.table[cmd.Args[0]] }
+	return db.NewResult(tbl.table[cmd.Args[0]])
 
 }
 

@@ -9,6 +9,8 @@ package db
 
 import (
 	"fmt"
+	"reflect"
+
 
 )
 
@@ -24,11 +26,14 @@ type Command struct {
 }
 
 
-//PLACEHOLDER result struct. TBD
 type Result struct {
-
-	Content string
+	reflect.Value
 }
+
+func NewResult(i interface{})*Result {
+	return &Result{reflect.ValueOf(i)}
+}
+
 
 const (
 
@@ -115,7 +120,7 @@ func (db *DataBase) HandleCommand(key string, cmd *Command) (*Result, error) {
 
 	//if this is an unknown command - return error
 	if commandDesc == nil {
-		return &Result{"Error: Invalid Command"}, fmt.Errorf("Could not find suitable command handler for %s", cmd.Command)
+		return NewResult("Error: Invalid Command"), fmt.Errorf("Could not find suitable command handler for %s", cmd.Command)
 
 	}
 
