@@ -115,7 +115,7 @@ func ReadRequest(reader *bufio.Reader) (cmd *db.Command, err error) {
 			len, err  := strconv.Atoi(string(buf[1:]))
 			if err == nil {
 				res := readMultiBulkData(reader, len)
-				return &db.Command{Command: string(res[0]), Key: string(res[1]), Args: nil, }, nil
+				return &db.Command{Command: string(res[0]), Key: string(res[1]), Args: res[2:], }, nil
 			}
 		}
 		default: {

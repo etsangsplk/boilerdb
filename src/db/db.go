@@ -124,7 +124,7 @@ func (db *DataBase) HandleCommand(cmd *Command) (*Result, error) {
 
 	}
 
-	var entry *Entry = nil
+	var entry Entry := nil
 
 	if cmd.Key != "" {
 		entry := db.dictionary[cmd.Key]
