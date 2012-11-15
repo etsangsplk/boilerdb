@@ -195,6 +195,7 @@ func (db *DataBase) RegisterPlugins(plugins ...IPlugin) {
 func (db *DataBase) HandleCommand(cmd *Command) (*Result, error) {
 
 	//get the right command handler for the command
+
 	commandDesc := db.commands[cmd.Command]
 
 	//if this is an unknown command - return error
@@ -220,6 +221,7 @@ func (db *DataBase) HandleCommand(cmd *Command) (*Result, error) {
 	db.globalLock.Unlock()
 	db.LockKey(cmd.Key, commandDesc.CommandType)
 
+	fmt.Printf("XXXXXXXXX")
 
 	//fmt.Println("Returning command for obj ", obj)
 

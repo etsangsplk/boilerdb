@@ -8,7 +8,7 @@
 package hash_table
 
 import (
-//	"fmt"
+	"fmt"
 	"db"
 	"io"
 )
@@ -43,8 +43,9 @@ func HandleHSET(cmd *db.Command, entry *db.Entry) *db.Result {
 
 }
 func HandleHGET(cmd *db.Command, entry *db.Entry) *db.Result {
-
+	fmt.Printf("ASDASDA")
 	tbl := entry.Value.(*HashTableStruct)
+	fmt.Printf("Args: %s", cmd.Args[0])
 	return db.NewResult(tbl.table[string(cmd.Args[0])])
 
 }
@@ -67,6 +68,6 @@ func (p *HashTablePlugin)GetCommands() []db.CommandDescriptor {
 
 	return []db.CommandDescriptor {
 		db.CommandDescriptor{"HSET", "subkey:string value:string", HandleHSET, p, 0, db.CMD_WRITER},
-		db.CommandDescriptor{"HGET", "subkey:string", HandleHSET, p, 0, db.CMD_READER},
+		db.CommandDescriptor{"HGET", "subkey:string", HandleHGET, p, 0, db.CMD_READER},
 	}
 }
