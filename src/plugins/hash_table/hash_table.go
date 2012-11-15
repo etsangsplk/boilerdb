@@ -10,13 +10,23 @@ package hash_table
 import (
 //	"fmt"
 	"db"
+	"io"
 )
 
 
 type HashTableStruct struct {
 
-	table map[string]string
+	table map[string][]byte
 }
+
+func (ht *HashTableStruct)Serialize(io.Writer) (int64, error) {
+	return 0, nil
+}
+
+func (ht *HashTableStruct)Dserialize(io.Reader, int64) (int64, error) {
+	return 0, nil
+}
+
 
 type HashTablePlugin struct {
 
@@ -27,7 +37,7 @@ func HandleHSET(cmd *db.Command, entry *db.Entry) *db.Result {
 
 	obj := entry.Value.(*HashTableStruct)
 	//fmt.Printf("%p %p %s\n", &obj, &(obj.table), obj.table)
-	obj.table[cmd.Args[0]] = cmd.Args[1]
+	obj.table[string(cmd.Args[0])] = cmd.Args[1]
 
 	return db.NewResult("OK")
 
@@ -35,23 +45,28 @@ func HandleHSET(cmd *db.Command, entry *db.Entry) *db.Result {
 func HandleHGET(cmd *db.Command, entry *db.Entry) *db.Result {
 
 	tbl := entry.Value.(*HashTableStruct)
-	return db.NewResult(tbl.table[cmd.Args[0]])
+	return db.NewResult(tbl.table[string(cmd.Args[0])])
 
 }
 
 const T_HASHTABLE uint32 = 8
 func (p *HashTablePlugin)CreateObject() *db.Entry {
 
-	ret := &db.Entry{&HashTableStruct{make(map[string]string)}, T_HASHTABLE}
+	ret := &db.Entry{ Value: &HashTableStruct{make(map[string][]byte)},
+					 Type: T_HASHTABLE,
+					}
 	//fmt.Println("Created new hash table ", ret)
 	return ret
 }
+
+
+
 
 func (p *HashTablePlugin)GetCommands() []db.CommandDescriptor {
 
 
 	return []db.CommandDescriptor {
-		db.CommandDescriptor{"HSET", "subkey:string value:string", HandleHSET, p},
-		db.CommandDescriptor{"HGET", "subkey:string", HandleHSET, p},
+		db.CommandDescriptor{"HSET", "subkey:string value:string", HandleHSET, p, 0, db.CMD_WRITER},
+		db.CommandDescriptor{"HGET", "subkey:string", HandleHSET, p, 0, db.CMD_READER},
 	}
 }

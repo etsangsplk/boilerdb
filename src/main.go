@@ -31,7 +31,6 @@ func main() {
 	ht := new(hash_table.HashTablePlugin)
 	database.RegisterPlugins(ht)
 
-
 	adap := redis_adapter.RedisAdapter{}
 
 	adap.Init(database)
