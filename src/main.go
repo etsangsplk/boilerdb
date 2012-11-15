@@ -31,16 +31,16 @@ func main() {
 
 	st := time.Now()
 
-	n := 10
+	n := 1000000
 
 
 
-	cmd := db.Command{"HSET", "foo", []string{ "", "v"}}
+	cmd := db.Command{"HGET", "foo", []string{ "", "v"}}
 	for i := 0; i < n; i++ {
 		cmd.Args[0] = fmt.Sprintf("k%d", i)
 
-		r, e := database.HandleCommand(cmd.Key, &cmd)
-		fmt.Println(r, e)
+		_, _ = database.HandleCommand(&cmd)
+		//fmt.Println(r, e)
 
 	}
 

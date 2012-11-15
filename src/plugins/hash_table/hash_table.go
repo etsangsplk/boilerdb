@@ -10,6 +10,8 @@ package hash_table
 import (
 //	"fmt"
 	"db"
+	"io"
+	"en"
 )
 
 
@@ -17,6 +19,15 @@ type HashTableStruct struct {
 
 	table map[string]string
 }
+
+func (ht *HashTableStruct)Serialize(io.Writer) (int64, error) {
+	return 0, nil
+}
+
+func (ht *HashTableStruct)Dserialize(io.Reader, int64) (int64, error) {
+	return 0, nil
+}
+
 
 type HashTablePlugin struct {
 
@@ -42,16 +53,21 @@ func HandleHGET(cmd *db.Command, entry *db.Entry) *db.Result {
 const T_HASHTABLE uint32 = 8
 func (p *HashTablePlugin)CreateObject() *db.Entry {
 
-	ret := &db.Entry{&HashTableStruct{make(map[string]string)}, T_HASHTABLE}
+	ret := &db.Entry{ Value: &HashTableStruct{make(map[string]string)},
+					 Type: T_HASHTABLE,
+					}
 	//fmt.Println("Created new hash table ", ret)
 	return ret
 }
+
+
+
 
 func (p *HashTablePlugin)GetCommands() []db.CommandDescriptor {
 
 
 	return []db.CommandDescriptor {
-		db.CommandDescriptor{"HSET", "subkey:string value:string", HandleHSET, p},
-		db.CommandDescriptor{"HGET", "subkey:string", HandleHSET, p},
+		db.CommandDescriptor{"HSET", "subkey:string value:string", HandleHSET, p, 0, db.CMD_WRITER},
+		db.CommandDescriptor{"HGET", "subkey:string", HandleHSET, p, 0, db.CMD_READER},
 	}
 }

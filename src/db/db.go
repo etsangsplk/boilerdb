@@ -10,7 +10,10 @@ package db
 import (
 	"fmt"
 	"reflect"
-
+	"log"
+	"sync"
+	"io"
+//	"bufio"
 
 )
 
@@ -30,6 +33,7 @@ type Result struct {
 	reflect.Value
 }
 
+
 func NewResult(i interface{})*Result {
 	return &Result{reflect.ValueOf(i)}
 }
@@ -44,18 +48,32 @@ const (
 
 )
 
+type DataStruct interface {
+
+
+	Serialize(io.Writer) (int64, error)
+
+	Dserialize(io.Reader, int64) (int64, error)
+
+}
 
 //Dictionary Entry struct
 type Entry struct {
 
-	Value interface{}
+	Value DataStruct
 	Type uint32
+
 
 }
 
 //Command handler function signature.
 //All command handlers should follow it
 type HandlerFunc func(*Command, *Entry) *Result
+
+const (
+	CMD_WRITER = 1
+	CMD_READER = 2
+	)
 
 //Wrapper of a function and the command name, used to register plugins and handlers
 type CommandDescriptor struct {
@@ -64,6 +82,10 @@ type CommandDescriptor struct {
 	Format string
 	Handler HandlerFunc
 	Owner IPlugin
+	ValidTypeMask uint32
+	CommandType int
+
+
 }
 
 
@@ -81,15 +103,73 @@ type DataBase struct {
 
 	commands map[string]*CommandDescriptor
 	dictionary map[string]*Entry
+	lockedKeys map[string]*sync.RWMutex
+	globalLock sync.Mutex
+}
+
+type KeyLock struct {
 
 }
 
+
 func NewDataBase() *DataBase {
-	return &DataBase{make(map[string]*CommandDescriptor), make(map[string]*Entry) }
+	return &DataBase{
+		commands: make(map[string]*CommandDescriptor),
+		dictionary: make(map[string]*Entry),
+		lockedKeys: make(map[string]*sync.RWMutex),
+		globalLock: sync.Mutex{},
+
+	}
 }
 
 func (db *DataBase) registerCommand(cd CommandDescriptor) {
+
+	//make sure we don't double register a command
+	if db.commands[cd.CommandName] != nil {
+		log.Panicf("Cannot register command %s, Already taken by %s", cd.CommandName, db.commands[cd.CommandName].Owner)
+	}
 	db.commands[cd.CommandName] = &cd
+
+}
+
+//Lock a key for reading/writing
+func (db *DataBase)LockKey(key string, mode int) {
+
+
+	db.globalLock.Lock()
+	defer func() { db.globalLock.Unlock() }()
+
+	keyLock := db.lockedKeys[key]
+	if keyLock == nil {
+		keyLock = &sync.RWMutex{}
+		db.lockedKeys[key] = keyLock
+
+	}
+
+	if mode == CMD_READER {
+		keyLock.RLock()
+	} else {
+		keyLock.Lock()
+	}
+}
+
+
+func (db *DataBase)UnlockKey(key string, mode int) {
+
+	db.globalLock.Lock()
+	defer func() { db.globalLock.Unlock() }()
+
+	keyLock := db.lockedKeys[key]
+	if keyLock == nil {
+		return
+
+	}
+
+	if mode == CMD_READER {
+		keyLock.RUnlock()
+	} else {
+		keyLock.Unlock()
+	}
 
 }
 
@@ -113,32 +193,42 @@ func (db *DataBase) RegisterPlugins(plugins ...IPlugin) {
 }
 
 
-func (db *DataBase) HandleCommand(key string, cmd *Command) (*Result, error) {
+func (db *DataBase) HandleCommand(cmd *Command) (*Result, error) {
 
 	//get the right command handler for the command
 	commandDesc := db.commands[cmd.Command]
 
 	//if this is an unknown command - return error
 	if commandDesc == nil {
-		return NewResult("Error: Invalid Command"), fmt.Errorf("Could not find suitable command handler for %s", cmd.Command)
+		return NewResult(Error{E_INVALID_COMMAND}), fmt.Errorf("Could not find suitable command handler for %s", cmd.Command)
 
 	}
 
-	entry := db.dictionary[key]
+	db.globalLock.Lock()
 
+	entry := db.dictionary[cmd.Key]
+
+	//if the entry does not exist - create it
 	if entry == nil {
 
 		entry = commandDesc.Owner.CreateObject()
-
+		//if the entry is nil - we do nothing for the tree
 		if entry != nil {
 
-			db.dictionary[key] = entry
+			db.dictionary[cmd.Key] = entry
 		}
 
 	}
+	db.globalLock.Unlock()
+	db.LockKey(cmd.Key, commandDesc.CommandType)
+
 
 	//fmt.Println("Returning command for obj ", obj)
-	return commandDesc.Handler(cmd, entry), nil
+	ret := commandDesc.Handler(cmd, entry)
+
+	db.UnlockKey(cmd.Key, commandDesc.CommandType)
+
+	return ret, nil
 
 
 }
