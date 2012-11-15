@@ -33,9 +33,10 @@ func main() {
 
 
 
-	cmd := db.Command{"HSET", "foo", []string{ "", "v"}}
+	cmd := db.Command{"HSET", "foo", []string{ "k", "v"}}
 	for i := 0; i < n; i++ {
-		cmd.Args[0] = fmt.Sprintf("k%d", i)
+		cmd.Args[0] = string(i)
+		//cmd.Args[0] = fmt.Sprintf("k%d", i)
 
 		_, _ = database.HandleCommand(cmd.Key, &cmd)
 		//fmt.Println(r, e)
