@@ -8,11 +8,13 @@
 package main
 
 import (
-	"fmt"
-	"time"
 	"runtime"
 	"db"
+	"net"
+	"log"
+	"fmt"
 	hash_table "plugins/hash_table"
+	redis_adapter "adapters/redis"
 
 )
 
@@ -29,25 +31,22 @@ func main() {
 	ht := new(hash_table.HashTablePlugin)
 	database.RegisterPlugins(ht)
 
-	st := time.Now()
 
-	n := 10
+	adap := redis_adapter.RedisAdapter{}
 
+	adap.Init(database)
+	addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:2000")
+	err := adap.Listen(addr)
 
-
-	cmd := db.Command{"HSET", "foo", []string{ "k", "v"}}
-	for i := 0; i < n; i++ {
-		cmd.Args[0] = string(i)
-		//cmd.Args[0] = fmt.Sprintf("k%d", i)
-
-		r, e := database.HandleCommand(cmd.Key, &cmd)
-		fmt.Println(r, e)
-
+	if err != nil {
+		fmt.Printf("Err: %s", err.Error())
+		log.Fatal(err)
+		return
 	}
 
-	duration := time.Since(st)
+	fmt.Printf("Go..\n")
+	adap.Start()
 
-	fmt.Printf("%d ops took %s, %f ops/sec", n, duration, float64(n)/duration.Seconds())
 	//fmt.Println(ret)
 	//ret = db.HandleCommand("myhash", &Command{"HGET", []string{"foo"}})
 	//fmt.Println(ret)

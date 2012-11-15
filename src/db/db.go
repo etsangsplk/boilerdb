@@ -113,7 +113,7 @@ func (db *DataBase) RegisterPlugins(plugins ...IPlugin) {
 }
 
 
-func (db *DataBase) HandleCommand(key string, cmd *Command) (*Result, error) {
+func (db *DataBase) HandleCommand(cmd *Command) (*Result, error) {
 
 	//get the right command handler for the command
 	commandDesc := db.commands[cmd.Command]
@@ -124,23 +124,25 @@ func (db *DataBase) HandleCommand(key string, cmd *Command) (*Result, error) {
 
 	}
 
-	entry := db.dictionary[key]
+	var entry *Entry = nil
 
-	if entry == nil {
+	if cmd.Key != "" {
+		entry := db.dictionary[cmd.Key]
 
-		entry = commandDesc.Owner.CreateObject()
+		if entry == nil {
 
-		if entry != nil {
+			entry = commandDesc.Owner.CreateObject()
 
-			db.dictionary[key] = entry
+			if entry != nil {
+
+				db.dictionary[cmd.Key] = entry
+			}
+
 		}
-
 	}
 
 	//fmt.Println("Returning command for obj ", obj)
 	return commandDesc.Handler(cmd, entry), nil
-
-
 }
 
 

@@ -3,18 +3,109 @@ package redis
 import (
 	"net"
 	"log"
-	"runtime"
 	"strconv"
 	"errors"
-	//"time"
-	"reflect"
 	"fmt"
 	"bufio"
 	"io"
 	"db"
 )
 
+type RedisAdapter struct {
+	db *db.DataBase
+	listener net.Listener
+	numClients uint
+	isRunning bool
+}
+
 var globalDict map[string][]byte = make(map[string][]byte)
+
+func (r *RedisAdapter) Init(d *db.DataBase) {
+	r.db = d
+}
+
+func (r *RedisAdapter) Listen(addr net.Addr) error {
+	listener, err := net.Listen(addr.Network(), addr.String())
+
+	if err != nil {
+		return err
+	}
+
+	r.listener = listener
+	return nil
+}
+
+func (r *RedisAdapter) SerializeResponse(res *db.Result) string {
+	log.Printf("Serialize response: %s", string(res.Kind()))
+	switch (res.Kind()) {
+	default:
+		return "A"
+			break
+	}
+
+	return "B"
+}
+
+func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
+	var err error = nil
+
+	reader := bufio.NewReader(c)
+	writer := bufio.NewWriter(c)
+
+	defer func(err *error) {
+		if e := recover(); e != nil {
+			log.Println(e)
+			*err = e.(error)
+		}
+	}(&err)
+
+	for err == nil && r.isRunning {
+		cmd, err := ReadRequest(reader)
+
+		if err != nil {
+			log.Println("Quitting!", err)
+		} else {
+			fmt.Printf("Handle command: %s, %s, %s", cmd.Command, cmd.Key, cmd.Args)
+			ret, _ := r.db.HandleCommand(cmd)
+
+			if ret != nil {
+				go writer.WriteString(r.SerializeResponse(ret))
+			}
+		}
+	}
+
+	c.Close()
+	return err
+}
+
+func (r *RedisAdapter) Start() error {
+	r.isRunning = true
+
+	for r.isRunning {
+		conn, err := r.listener.(*net.TCPListener).AcceptTCP()
+
+		if err != nil {
+			log.Fatal(err)
+			return err
+		}
+		// Handle the connection in a new goroutine.
+		// The loop then returns to accepting, so that
+		// multiple connections may be served concurrently.
+		go r.HandleConnection(conn)
+	}
+
+	return nil
+}
+
+func (r *RedisAdapter) Stop() error {
+	r.isRunning = false
+
+	return nil
+}
+
+func (r *RedisAdapter) Name() string {
+	return "Redis"
+}
 
 func ReadRequest(reader *bufio.Reader) (cmd *db.Command, err error) {
 	buf := readToCRLF(reader)
@@ -24,11 +115,11 @@ func ReadRequest(reader *bufio.Reader) (cmd *db.Command, err error) {
 			len, err  := strconv.Atoi(string(buf[1:]))
 			if err == nil {
 				res := readMultiBulkData(reader, len)
-				return &db.Command{cmd: res[0], args: res, }, nil
+				return &db.Command{Command: string(res[0]), Key: string(res[1]), Args: nil, }, nil
 			}
 		}
 		default: {
-			return &db.Command{cmd: buf, args: nil}, nil
+			return &db.Command{Command: string(buf), Args: nil}, nil
 		}
 	}
 	return nil, fmt.Errorf("Could not read line. buf is '%s'", buf)
@@ -137,70 +228,3 @@ func readMultiBulkData(conn *bufio.Reader, num int) [][]byte {
 	return data
 }
 
-func serve(c *net.TCPConn) {
-	cont := true
-	reader := bufio.NewReader(c)
-	defer func(cont *bool) {
-		if e := recover(); e != nil {
-			log.Println(e)
-		}
-		*cont = false
-
-	}(&cont)
-
-
-	//resp := []byte("+PONG\r\n")
-
-	for cont {
-
-		cmd, err := ReadRequest(reader)
-		if err != nil {
-			cont = false
-			log.Println("Quitting!", err)
-		}
-
-		switch string(cmd.cmd) {
-		case "SET": {
-			//globalDict[string(cmd.args[1])] = cmd.args[2]
-			go c.Write([]byte("+OK\r\n"))
-		}
-		case "GET":{
-
-			go c.Write([]byte(fmt.Sprintf("+%s\r\n", globalDict[string(cmd.args[1])])))
-		}
-		default: {
-			go c.Write([]byte("+OK\r\n"))
-		}
-
-		}
-		//log.Printf("Read %d bytes %s: '%s'\n", n, err, buf)
-
-
-	}
-	// Shut down the connection.
-	c.Close()
-}
-func main() {
-	runtime.GOMAXPROCS(8)
-
-	// Listen on TCP port 2000 on all interfaces.
-	l, err := net.Listen("tcp", ":2000")
-
-	if err != nil {
-		log.Fatal(err)
-	}
-	for {
-		// Wait for a connection.
-
-		conn, err := l.(* net.TCPListener).AcceptTCP()
-
-		if err != nil {
-			log.Fatal(err)
-		}
-		// Handle the connection in a new goroutine.
-		// The loop then returns to accepting, so that
-		// multiple connections may be served concurrently.
-		go serve(conn)
-
-	}
-}
