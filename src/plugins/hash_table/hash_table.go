@@ -8,23 +8,23 @@
 package hash_table
 
 import (
-	"fmt"
+//	"fmt"
 	"db"
-	"io"
+	"log"
+	"bytes"
+	gob "encoding/gob"
 )
 
 
 type HashTableStruct struct {
 
-	table map[string][]byte
+	Table map[string][]byte
 }
 
-func (ht *HashTableStruct)Serialize(io.Writer) (int64, error) {
-	return 0, nil
-}
+func (ht *HashTableStruct)Serialize(g *gob.Encoder) error {
 
-func (ht *HashTableStruct)Dserialize(io.Reader, int64) (int64, error) {
-	return 0, nil
+	err := g.Encode(ht)
+	return err
 }
 
 
@@ -37,16 +37,15 @@ func HandleHSET(cmd *db.Command, entry *db.Entry) *db.Result {
 
 	obj := entry.Value.(*HashTableStruct)
 	//fmt.Printf("%p %p %s\n", &obj, &(obj.table), obj.table)
-	obj.table[string(cmd.Args[0])] = cmd.Args[1]
+	obj.Table[string(cmd.Args[0])] = cmd.Args[1]
 
 	return db.NewResult("OK")
 
 }
 func HandleHGET(cmd *db.Command, entry *db.Entry) *db.Result {
-	fmt.Printf("ASDASDA")
 	tbl := entry.Value.(*HashTableStruct)
-	fmt.Printf("Args: %s", cmd.Args[0])
-	return db.NewResult(tbl.table[string(cmd.Args[0])])
+	//fmt.Printf("Args: %s", cmd.Args[0])
+	return db.NewResult(tbl.Table[string(cmd.Args[0])])
 
 }
 
@@ -60,6 +59,29 @@ func (p *HashTablePlugin)CreateObject() *db.Entry {
 	return ret
 }
 
+func (p *HashTablePlugin)LoadObject(buf []byte, t uint32) *db.Entry {
+
+	if t == T_HASHTABLE {
+
+		var ht HashTableStruct
+		buffer := bytes.NewBuffer(buf)
+		dec := gob.NewDecoder(buffer)
+		err := dec.Decode(&ht)
+		if err != nil {
+			log.Printf("Could not deserialize oject: %s", err)
+			return nil
+		}
+
+		return &db.Entry{
+			Value: &ht,
+			Type: T_HASHTABLE,
+		}
+
+	}
+	log.Printf("Invalid type %u. Could not deserialize", t)
+	return nil
+}
+
 
 
 
@@ -70,4 +92,8 @@ func (p *HashTablePlugin)GetCommands() []db.CommandDescriptor {
 		db.CommandDescriptor{"HSET", "subkey:string value:string", HandleHSET, p, 0, db.CMD_WRITER},
 		db.CommandDescriptor{"HGET", "subkey:string", HandleHGET, p, 0, db.CMD_READER},
 	}
+}
+
+func (p* HashTablePlugin) GetTypes() []uint32 {
+	return []uint32{T_HASHTABLE,}
 }

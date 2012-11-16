@@ -31,23 +31,30 @@ func main() {
 	ht := new(hash_table.HashTablePlugin)
 	database.RegisterPlugins(ht)
 
-	adap := redis_adapter.RedisAdapter{}
+	if false {
+		adap := redis_adapter.RedisAdapter{}
 
-	adap.Init(database)
-	addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:2000")
-	err := adap.Listen(addr)
+		adap.Init(database)
+		addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:2000")
+		err := adap.Listen(addr)
 
-	if err != nil {
-		fmt.Printf("Err: %s", err.Error())
-		log.Fatal(err)
-		return
+		if err != nil {
+			fmt.Printf("Err: %s", err.Error())
+			log.Fatal(err)
+			return
+		}
+
+		fmt.Printf("Go..\n")
+		adap.Start()
 	}
-
-	fmt.Printf("Go..\n")
-	adap.Start()
-
 	//fmt.Println(ret)
-	//ret = db.HandleCommand("myhash", &Command{"HGET", []string{"foo"}})
-	//fmt.Println(ret)
+	cmd := db.Command{"HSET", "foo", [][]byte{[]byte("bar"), []byte("baz")}}
+	ret, _ := database.HandleCommand(&cmd)
+	cmd = db.Command{"HSET", "foo", [][]byte{[]byte("bag"), []byte("ban")}}
+	ret, _ = database.HandleCommand(&cmd)
+	fmt.Println(ret)
+	_, _ = database.Dump()
+
+
 
 }

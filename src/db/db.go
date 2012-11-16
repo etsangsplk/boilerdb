@@ -12,6 +12,8 @@ import (
 	"reflect"
 	"log"
 	"sync"
+	gob "encoding/gob"
+	"bytes"
 	"io"
 //	"bufio"
 
@@ -50,9 +52,7 @@ const (
 type DataStruct interface {
 
 
-	Serialize(io.Writer) (int64, error)
-
-	Dserialize(io.Reader, int64) (int64, error)
+	Serialize(*gob.Encoder) error
 
 }
 
@@ -63,6 +63,13 @@ type Entry struct {
 	Type uint32
 
 
+}
+
+type SerializedEntry struct {
+	Bytes []byte
+	Len uint64
+	Type uint32
+	Key string
 }
 
 //Command handler function signature.
@@ -95,7 +102,15 @@ type IPlugin interface {
 
 	GetCommands() []CommandDescriptor
 
+	GetTypes() []uint32
+
+	LoadObject ([]byte, uint32) *Entry
+
+
+
 }
+
+
 
 
 type DataBase struct {
@@ -104,6 +119,7 @@ type DataBase struct {
 	dictionary map[string]*Entry
 	lockedKeys map[string]*sync.RWMutex
 	globalLock sync.Mutex
+	types map[uint32]*IPlugin
 }
 
 type KeyLock struct {
@@ -117,6 +133,7 @@ func NewDataBase() *DataBase {
 		dictionary: make(map[string]*Entry),
 		lockedKeys: make(map[string]*sync.RWMutex),
 		globalLock: sync.Mutex{},
+		types: make(map[uint32]*IPlugin),
 
 	}
 }
@@ -186,6 +203,12 @@ func (db *DataBase) RegisterPlugins(plugins ...IPlugin) {
 			totalCommands++
 			db.registerCommand(commands[j])
 		}
+
+		types := plugin.GetTypes()
+		for t := range types {
+			log.Printf("Registering type %d to plugin %s", types[t], plugin)
+			db.types[types[t]] = &plugin
+		}
 	}
 	fmt.Printf("Registered %d plugins and %d commands\n", len(plugins), totalCommands)
 
@@ -221,8 +244,6 @@ func (db *DataBase) HandleCommand(cmd *Command) (*Result, error) {
 	db.globalLock.Unlock()
 	db.LockKey(cmd.Key, commandDesc.CommandType)
 
-	fmt.Printf("XXXXXXXXX")
-
 	//fmt.Println("Returning command for obj ", obj)
 
 	ret := commandDesc.Handler(cmd, entry)
@@ -232,4 +253,62 @@ func (db *DataBase) HandleCommand(cmd *Command) (*Result, error) {
 	return ret, nil
 }
 
+
+func (db *DataBase) Dump() (int64, error) {
+
+	var globalBuf bytes.Buffer
+	var buf bytes.Buffer
+
+	globalEnc := gob.NewEncoder(&globalBuf)
+
+	enc := gob.NewEncoder(&buf)
+	for k := range db.dictionary {
+
+		entry := db.dictionary[k]
+
+		err := entry.Value.Serialize(enc)
+		if err != nil {
+			log.Printf("Could not serialize entry %s: %s", entry, err)
+			buf.Truncate(0)
+			continue
+		}
+		fmt.Printf("Serialzed %s. err: %s\n", entry, err)
+
+		serialized := SerializedEntry{ buf.Bytes(), uint64(buf.Len()), entry.Type, k}
+		globalEnc.Encode(serialized)
+		buf.Reset()
+
+
+
+	}
+
+
+
+	dec := gob.NewDecoder(&globalBuf)
+	var se SerializedEntry
+	var err error
+	nLoaded := 0
+	for err != io.EOF {
+		err = dec.Decode(&se)
+
+		if err == nil {
+			fmt.Println(err)
+			fmt.Println(se.Key)
+
+			creator := db.types[se.Type]
+			if creator == nil {
+				log.Panicf("Got invalid serializer type %d", se.Type)
+			}
+
+			entry := (*creator).LoadObject(se.Bytes, se.Type)
+			db.dictionary[se.Key] = entry
+			nLoaded ++
+		}
+
+	}
+
+
+	log.Printf("Loaded %d objects from dump", nLoaded)
+	return 0, nil
+}
 
