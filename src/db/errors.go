@@ -28,3 +28,16 @@ type Error struct {
 func (e *Error) toString() string {
 	return errorCodes[e.Code	]
 }
+
+type Status struct {
+	Error
+	Str string
+}
+
+func NewError(code int) *Error {
+	return &Error{code}
+}
+
+func NewStatus(str string) *Status {
+	return &Status{Error {0}, str}
+}
