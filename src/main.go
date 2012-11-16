@@ -13,6 +13,7 @@ import (
 	"net"
 	"log"
 	"fmt"
+	simple "plugins/simple"
 	hash_table "plugins/hash_table"
 	redis_adapter "adapters/redis"
 
@@ -29,7 +30,9 @@ func main() {
 	runtime.GOMAXPROCS(8)
 	database := db.NewDataBase()
 	ht := new(hash_table.HashTablePlugin)
-	database.RegisterPlugins(ht)
+	smp := new(simple.SimplePlugin)
+	database.RegisterPlugins(ht, smp)
+
 
 	adap := redis_adapter.RedisAdapter{}
 

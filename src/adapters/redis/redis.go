@@ -106,7 +106,6 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 		if err != nil {
 			log.Println("Quitting!", err)
 		} else {
-			fmt.Printf("Handle command: %s, %s, %s", cmd.Command, cmd.Key, cmd.Args)
 			ret, _ := r.db.HandleCommand(cmd)
 
 			if ret != nil {

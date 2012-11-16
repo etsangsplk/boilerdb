@@ -133,8 +133,6 @@ func (db *DataBase) registerCommand(cd CommandDescriptor) {
 
 //Lock a key for reading/writing
 func (db *DataBase)LockKey(key string, mode int) {
-
-
 	db.globalLock.Lock()
 	defer func() { db.globalLock.Unlock() }()
 
@@ -220,8 +218,6 @@ func (db *DataBase) HandleCommand(cmd *Command) (*Result, error) {
 	}
 	db.globalLock.Unlock()
 	db.LockKey(cmd.Key, commandDesc.CommandType)
-
-	fmt.Printf("XXXXXXXXX")
 
 	//fmt.Println("Returning command for obj ", obj)
 
