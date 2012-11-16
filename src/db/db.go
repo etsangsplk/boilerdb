@@ -15,6 +15,8 @@ import (
 	gob "encoding/gob"
 	"bytes"
 	"io"
+	"config"
+	"os"
 //	"bufio"
 
 )
@@ -114,6 +116,9 @@ type IPlugin interface {
 
 
 
+
+
+
 type DataBase struct {
 
 	commands map[string]*CommandDescriptor
@@ -121,6 +126,7 @@ type DataBase struct {
 	lockedKeys map[string]*sync.RWMutex
 	globalLock sync.Mutex
 	types map[uint32]*IPlugin
+
 }
 
 type KeyLock struct {
@@ -260,14 +266,20 @@ func (db *DataBase) HandleCommand(cmd *Command) (*Result, error) {
 
 func (db *DataBase) Dump() (int64, error) {
 
-	var globalBuf bytes.Buffer
+	fp, err := os.Create(fmt.Sprintf("%s/%s", config.WORKING_DIRECTORY, "dump.bdb"))
+	if err != nil {
+		log.Printf("Could not save to file: %s", err)
+		return 0, err
+	}
+
 	var buf bytes.Buffer
 
-	globalEnc := gob.NewEncoder(&globalBuf)
+	globalEnc := gob.NewEncoder(fp)
 
-	enc := gob.NewEncoder(&buf)
+
 	for k := range db.dictionary {
 
+		enc := gob.NewEncoder(&buf)
 		entry := db.dictionary[k]
 
 		err := entry.Value.Serialize(enc)
@@ -279,18 +291,27 @@ func (db *DataBase) Dump() (int64, error) {
 		fmt.Printf("Serialzed %s. err: %s\n", entry, err)
 
 		serialized := SerializedEntry{ buf.Bytes(), uint64(buf.Len()), entry.Type, k}
-		globalEnc.Encode(serialized)
-		buf.Reset()
+		globalEnc.Encode(&serialized)
+		buf.Truncate(0)
 
 
 
 	}
 
+	fp.Close()
+	return 0, nil
+}
 
+func (db *DataBase)LoadDump() error {
 
-	dec := gob.NewDecoder(&globalBuf)
+	fp, err := os.Open(fmt.Sprintf("%s/%s", config.WORKING_DIRECTORY, "dump.bdb"))
+	if err != nil {
+		log.Printf("Could not load file: %s", err)
+		return err
+	}
+	dec := gob.NewDecoder(fp)
 	var se SerializedEntry
-	var err error
+
 	nLoaded := 0
 	for err != io.EOF {
 		err = dec.Decode(&se)
@@ -305,14 +326,16 @@ func (db *DataBase) Dump() (int64, error) {
 			}
 
 			entry := (*creator).LoadObject(se.Bytes, se.Type)
-			db.dictionary[se.Key] = entry
-			nLoaded ++
+			if entry != nil {
+				db.dictionary[se.Key] = entry
+				nLoaded ++
+			}
 		}
 
 	}
 
 
 	log.Printf("Loaded %d objects from dump", nLoaded)
-	return 0, nil
+	return nil
 }
 

@@ -34,7 +34,7 @@ func main() {
 	database.RegisterPlugins(ht, smp)
 
 
-	if true {
+	if false {
 		adap := redis_adapter.RedisAdapter{}
 
 		adap.Init(database)
@@ -51,12 +51,14 @@ func main() {
 		adap.Start()
 	}
 	//fmt.Println(ret)
-	cmd := db.Command{"HSET", "foo", [][]byte{[]byte("bar"), []byte("baz")}}
-	ret, _ := database.HandleCommand(&cmd)
-	cmd = db.Command{"HSET", "foo", [][]byte{[]byte("bag"), []byte("ban")}}
-	ret, _ = database.HandleCommand(&cmd)
-	fmt.Println(ret)
-	_, _ = database.Dump()
+//	for i := 0; i < 10; i++ {
+//		cmd := db.Command{"HSET", fmt.Sprintf("foo%d", i), [][]byte{[]byte("bar"), []byte("baz")}}
+//		_, _ = database.HandleCommand(&cmd)
+//
+//	}
+//	_, _ = database.Dump()
+
+	_ = database.LoadDump()
 
 
 
