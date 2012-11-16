@@ -39,14 +39,20 @@ func HandleHSET(cmd *db.Command, entry *db.Entry) *db.Result {
 	//fmt.Printf("%p %p %s\n", &obj, &(obj.table), obj.table)
 	obj.Table[string(cmd.Args[0])] = cmd.Args[1]
 
-	return db.NewResult("OK")
+	return db.NewResult(db.NewStatus("OK"))
 
 }
 func HandleHGET(cmd *db.Command, entry *db.Entry) *db.Result {
 	tbl := entry.Value.(*HashTableStruct)
-	//fmt.Printf("Args: %s", cmd.Args[0])
-	return db.NewResult(tbl.Table[string(cmd.Args[0])])
 
+	r := db.NewResult(string(tbl.table[string(cmd.Args[0])]))
+	return r
+}
+
+func HandleHGETALL(cmd *db.Command, entry *db.Entry) *db.Result {
+	tbl := entry.Value.(*HashTableStruct)
+	r := db.NewResult(tbl.table)
+	return r
 }
 
 const T_HASHTABLE uint32 = 8
@@ -91,6 +97,7 @@ func (p *HashTablePlugin)GetCommands() []db.CommandDescriptor {
 	return []db.CommandDescriptor {
 		db.CommandDescriptor{"HSET", "subkey:string value:string", HandleHSET, p, 0, db.CMD_WRITER},
 		db.CommandDescriptor{"HGET", "subkey:string", HandleHGET, p, 0, db.CMD_READER},
+		db.CommandDescriptor{"HGETALL", "subkey:string", HandleHGETALL, p, 0, db.CMD_READER},
 	}
 }
 

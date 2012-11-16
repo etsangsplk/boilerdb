@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"io"
 	"db"
+	"reflect"
 )
 
 type RedisAdapter struct {
@@ -35,15 +36,55 @@ func (r *RedisAdapter) Listen(addr net.Addr) error {
 	return nil
 }
 
-func (r *RedisAdapter) SerializeResponse(res *db.Result) string {
-	log.Printf("Serialize response: %s", string(res.Kind()))
+func (r *RedisAdapter) SerializeResponse(res *db.Result, writer io.Writer) string {
 	switch (res.Kind()) {
-	default:
-		return "A"
+	case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			writer.Write([]byte(":" + string(res.Int()) + "\r\n"))
 			break
+		case reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			writer.Write([]byte(":" + string(res.Uint()) + "\r\n"))
+			break
+		case reflect.Slice, reflect.Array:
+			l := res.Len()
+			writer.Write([]byte(string("*") + string(l)))
+
+			for i := 0; i < l; i++ {
+				v := res.Index(i).String()
+				writer.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(v), v)))
+			}
+			break
+		case reflect.Map:
+			l := res.Len()*2
+			writer.Write([]byte(fmt.Sprintf("*%d\r\n", l)))
+
+			for _, k := range(res.MapKeys()) {
+				v := string(res.MapIndex(k).Bytes())
+				writer.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n$%d\r\n%s\r\n", len(k.String()), k.String(), len(v), v)))
+			}
+			break
+		case reflect.Ptr:
+			__value := *res
+
+			s, ok := __value.Interface().(*db.Status)
+			if ok {
+				writer.Write([]byte(fmt.Sprintf("+%s\r\n", s.Str)))
+				break
+			}
+
+			e, ok := __value.Interface().(*db.Error)
+			if ok {
+				writer.Write([]byte(fmt.Sprintf("-ERR %d\r\n", e.Code)))
+				break
+			}
+
+			writer.Write([]byte(fmt.Sprintf("-ERR Unknown type\r\n")))
+			break
+	default:
+			s := res.String()
+			writer.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(s), s)))
 	}
 
-	return "B"
+	return ""
 }
 
 func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
@@ -69,7 +110,8 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 			ret, _ := r.db.HandleCommand(cmd)
 
 			if ret != nil {
-				go writer.WriteString(r.SerializeResponse(ret))
+				r.SerializeResponse(ret, writer)
+				err = writer.Flush()
 			}
 		}
 	}
