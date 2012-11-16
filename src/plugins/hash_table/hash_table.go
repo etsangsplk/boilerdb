@@ -45,13 +45,13 @@ func HandleHSET(cmd *db.Command, entry *db.Entry) *db.Result {
 func HandleHGET(cmd *db.Command, entry *db.Entry) *db.Result {
 	tbl := entry.Value.(*HashTableStruct)
 
-	r := db.NewResult(string(tbl.table[string(cmd.Args[0])]))
+	r := db.NewResult(string(tbl.Table[string(cmd.Args[0])]))
 	return r
 }
 
 func HandleHGETALL(cmd *db.Command, entry *db.Entry) *db.Result {
 	tbl := entry.Value.(*HashTableStruct)
-	r := db.NewResult(tbl.table)
+	r := db.NewResult(tbl.Table)
 	return r
 }
 
