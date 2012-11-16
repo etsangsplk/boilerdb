@@ -46,6 +46,10 @@ func HandleGET(cmd *db.Command, entry *db.Entry) *db.Result {
 	return r
 }
 
+func HandlePING(cmd *db.Command, entry *db.Entry) *db.Result {
+	return db.NewResult("PONG")
+}
+
 func (p *SimplePlugin)CreateObject() *db.Entry {
 
 	ret := &db.Entry{ Value: &SimpleStruct{},
@@ -64,5 +68,7 @@ func (p *SimplePlugin)GetCommands() []db.CommandDescriptor {
 	return []db.CommandDescriptor {
 		db.CommandDescriptor{"SET", "subkey:string value:string", HandleSET, p, 0, db.CMD_WRITER},
 		db.CommandDescriptor{"GET", "subkey:string", HandleGET, p, 0, db.CMD_READER},
+		db.CommandDescriptor{"PING", "subkey:string", HandlePING, p, 0, db.CMD_READER},
+
 	}
 }

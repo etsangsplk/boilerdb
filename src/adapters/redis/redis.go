@@ -153,10 +153,15 @@ func ReadRequest(reader *bufio.Reader) (cmd *db.Command, err error) {
 
 	switch buf[0] {
 		case '*': {
-			len, err  := strconv.Atoi(string(buf[1:]))
+			ll, err  := strconv.Atoi(string(buf[1:]))
 			if err == nil {
-				res := readMultiBulkData(reader, len)
-				return &db.Command{Command: string(res[0]), Key: string(res[1]), Args: res[2:], }, nil
+				res := readMultiBulkData(reader, ll)
+				if len(res) > 1 {
+					return &db.Command{Command: string(res[0]), Key: string(res[1]), Args: res[2:], }, nil
+
+				} else {
+					return &db.Command{Command: string(res[0]), Key: "", Args: nil, }, nil
+				}
 			}
 		}
 		default: {

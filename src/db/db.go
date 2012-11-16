@@ -202,30 +202,34 @@ func (db *DataBase) HandleCommand(cmd *Command) (*Result, error) {
 
 	}
 
-	db.globalLock.Lock()
+	if cmd.Key != "" {
+		db.globalLock.Lock()
 
-	entry := db.dictionary[cmd.Key]
+		entry := db.dictionary[cmd.Key]
 
-	//if the entry does not exist - create it
-	if entry == nil {
+		//if the entry does not exist - create it
+		if entry == nil {
 
-		entry = commandDesc.Owner.CreateObject()
-		//if the entry is nil - we do nothing for the tree
-		if entry != nil {
+			entry = commandDesc.Owner.CreateObject()
+			//if the entry is nil - we do nothing for the tree
+			if entry != nil {
 
-			db.dictionary[cmd.Key] = entry
+				db.dictionary[cmd.Key] = entry
+			}
 		}
+		db.globalLock.Unlock()
+		db.LockKey(cmd.Key, commandDesc.CommandType)
+
+		//fmt.Println("Returning command for obj ", obj)
+
+		ret := commandDesc.Handler(cmd, entry)
+
+		db.UnlockKey(cmd.Key, commandDesc.CommandType)
+
+		return ret, nil
 	}
-	db.globalLock.Unlock()
-	db.LockKey(cmd.Key, commandDesc.CommandType)
 
-	//fmt.Println("Returning command for obj ", obj)
-
-	ret := commandDesc.Handler(cmd, entry)
-
-	db.UnlockKey(cmd.Key, commandDesc.CommandType)
-
-	return ret, nil
+	return commandDesc.Handler(cmd, nil), nil
 }
 
 
