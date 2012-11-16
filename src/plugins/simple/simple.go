@@ -64,7 +64,7 @@ return nil
 }
 
 
-	func (p *SimplePlugin)GetCommands() []db.CommandDescriptor {
+func (p *SimplePlugin)GetCommands() []db.CommandDescriptor {
 
 
 	return []db.CommandDescriptor {

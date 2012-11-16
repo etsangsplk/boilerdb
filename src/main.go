@@ -8,22 +8,17 @@
 package main
 
 import (
-	"runtime"
-	"db"
-	"net"
-	"log"
-	"fmt"
-	simple "plugins/simple"
-	hash_table "plugins/hash_table"
 	redis_adapter "adapters/redis"
-
+	"db"
+	"fmt"
+	"log"
+	"net"
+	hash_table "plugins/hash_table"
+	simple "plugins/simple"
+	"runtime"
 )
 
-
 ///////////////////////////////////////////////////
-
-
-
 
 func main() {
 
@@ -33,8 +28,9 @@ func main() {
 	smp := new(simple.SimplePlugin)
 	database.RegisterPlugins(ht, smp)
 
+	_ = database.LoadDump()
 
-	if false {
+	if true {
 		adap := redis_adapter.RedisAdapter{}
 
 		adap.Init(database)
@@ -51,15 +47,11 @@ func main() {
 		adap.Start()
 	}
 	//fmt.Println(ret)
-//	for i := 0; i < 10; i++ {
-//		cmd := db.Command{"HSET", fmt.Sprintf("foo%d", i), [][]byte{[]byte("bar"), []byte("baz")}}
-//		_, _ = database.HandleCommand(&cmd)
-//
-//	}
-//	_, _ = database.Dump()
+	for i := 0; i < 10; i++ {
+		cmd := db.Command{"HSET", fmt.Sprintf("foo%d", i), [][]byte{[]byte("bar"), []byte("baz")}}
+		_, _ = database.HandleCommand(&cmd)
 
-	_ = database.LoadDump()
-
-
+	}
+	_, _ = database.Dump()
 
 }

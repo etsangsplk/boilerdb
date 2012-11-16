@@ -115,21 +115,20 @@ type IPlugin interface {
 
 
 
-
-
-
-
 type DataBase struct {
 
 	commands map[string]*CommandDescriptor
 	dictionary map[string]*Entry
-	lockedKeys map[string]*sync.RWMutex
+	lockedKeys map[string]*KeyLock
 	globalLock sync.Mutex
 	types map[uint32]*IPlugin
 
 }
 
 type KeyLock struct {
+
+	sync.RWMutex
+	refCount int
 
 }
 
@@ -138,7 +137,7 @@ func NewDataBase() *DataBase {
 	return &DataBase{
 		commands: make(map[string]*CommandDescriptor),
 		dictionary: make(map[string]*Entry),
-		lockedKeys: make(map[string]*sync.RWMutex),
+		lockedKeys: make(map[string]*KeyLock),
 		globalLock: sync.Mutex{},
 		types: make(map[uint32]*IPlugin),
 
@@ -157,16 +156,22 @@ func (db *DataBase) registerCommand(cd CommandDescriptor) {
 
 //Lock a key for reading/writing
 func (db *DataBase)LockKey(key string, mode int) {
-	return
+
 	db.globalLock.Lock()
-	defer func() { db.globalLock.Unlock() }()
+
 
 	keyLock := db.lockedKeys[key]
 	if keyLock == nil {
-		keyLock = &sync.RWMutex{}
+		keyLock = &KeyLock{sync.RWMutex{}, 1}
 		db.lockedKeys[key] = keyLock
 
+	} else {
+		keyLock.refCount++
+
 	}
+
+
+	db.globalLock.Unlock()
 
 	if mode == CMD_READER {
 		keyLock.RLock()
@@ -177,22 +182,34 @@ func (db *DataBase)LockKey(key string, mode int) {
 
 
 func (db *DataBase)UnlockKey(key string, mode int) {
-	return
+
 
 	db.globalLock.Lock()
-	defer func() { db.globalLock.Unlock() }()
+	//defer func() { db.globalLock.Unlock() }()
 
 	keyLock := db.lockedKeys[key]
 	if keyLock == nil {
+		log.Printf("Error: Empty lock! key %s", key)
 		return
 
 	}
+
+
+	keyLock.refCount--
+	//delete from the lock dictionary if no one else is holding this
+	if keyLock.refCount == 0 {
+		db.lockedKeys[key] = nil
+	}
+	db.globalLock.Unlock()
+
 
 	if mode == CMD_READER {
 		keyLock.RUnlock()
 	} else {
 		keyLock.Unlock()
 	}
+
+
 
 }
 
@@ -266,6 +283,7 @@ func (db *DataBase) HandleCommand(cmd *Command) (*Result, error) {
 
 func (db *DataBase) Dump() (int64, error) {
 
+	//open the dump file for writing
 	fp, err := os.Create(fmt.Sprintf("%s/%s", config.WORKING_DIRECTORY, "dump.bdb"))
 	if err != nil {
 		log.Printf("Could not save to file: %s", err)
