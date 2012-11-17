@@ -95,9 +95,9 @@ func (p *HashTablePlugin)GetCommands() []db.CommandDescriptor {
 
 
 	return []db.CommandDescriptor {
-		db.CommandDescriptor{"HSET", "subkey:string value:string", HandleHSET, p, 0, db.CMD_WRITER},
-		db.CommandDescriptor{"HGET", "subkey:string", HandleHGET, p, 0, db.CMD_READER},
-		db.CommandDescriptor{"HGETALL", "subkey:string", HandleHGETALL, p, 0, db.CMD_READER},
+		db.CommandDescriptor{"HSET", 2, HandleHSET, p, 0, db.CMD_WRITER},
+		db.CommandDescriptor{"HGET", 1, HandleHGET, p, 0, db.CMD_READER},
+		db.CommandDescriptor{"HGETALL", 2, HandleHGETALL, p, 0, db.CMD_READER},
 	}
 }
 

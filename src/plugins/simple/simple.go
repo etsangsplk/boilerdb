@@ -68,9 +68,9 @@ func (p *SimplePlugin)GetCommands() []db.CommandDescriptor {
 
 
 	return []db.CommandDescriptor {
-		db.CommandDescriptor{"SET", "subkey:string value:string", HandleSET, p, 0, db.CMD_WRITER},
-		db.CommandDescriptor{"GET", "subkey:string", HandleGET, p, 0, db.CMD_READER},
-		db.CommandDescriptor{"PING", "subkey:string", HandlePING, p, 0, db.CMD_READER},
+		db.CommandDescriptor{"SET",2, HandleSET, p, 0, db.CMD_WRITER},
+		db.CommandDescriptor{"GET", 1, HandleGET, p, 0, db.CMD_READER},
+		db.CommandDescriptor{"PING",1, HandlePING, p, 0, db.CMD_READER},
 
 	}
 }

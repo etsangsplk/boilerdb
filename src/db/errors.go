@@ -11,6 +11,8 @@ const (
 	E_UNKNOWN_ERROR int = 0
 	E_INVALID_COMMAND int = 2
 	E_TYPE_MISMATCH int = 3
+	E_INVALID_PARAMS int = 4
+	E_NOT_ENOUGH_PARAMS int = 5
 )
 
 
@@ -18,6 +20,8 @@ var errorCodes map[int]string = map[int]string {
 	E_UNKNOWN_ERROR: "Unknwon Error",
 	E_INVALID_COMMAND: "Invalid Command",
 	E_TYPE_MISMATCH: "Type Mismatch",
+	E_INVALID_PARAMS: "Invalid parameters for call",
+	E_NOT_ENOUGH_PARAMS: "Not enough params for command",
 
 }
 
@@ -25,8 +29,8 @@ type Error struct {
 	Code int
 }
 
-func (e *Error) toString() string {
-	return errorCodes[e.Code	]
+func (e *Error) ToString() string {
+	return errorCodes[e.Code]
 }
 
 type Status struct {

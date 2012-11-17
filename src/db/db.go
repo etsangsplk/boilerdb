@@ -17,12 +17,12 @@ import (
 	"io"
 	"config"
 	"os"
+	"strings"
 //	"bufio"
 
 )
 
 
-type Arg string
 
 //the command struct
 type Command struct {
@@ -30,6 +30,18 @@ type Command struct {
 	Command string
 	Key string
 	Args [][]byte
+}
+
+
+func (cmd *Command) HasArg(s string) bool {
+	for i := range cmd.Args {
+		if s ==  strings.ToUpper(string(cmd.Args[i])) {
+			return true
+		}
+	}
+
+	return false
+
 }
 
 
@@ -88,7 +100,7 @@ const (
 type CommandDescriptor struct {
 	CommandName string
 	//used to validate/parse query format. e.g. "<key> <*> <int> [LIMIT <%d> <%d>]" => /(\s) (\s) ([[:num]]+) (LIMIT ([[:num]]+) ([[:num]]+))?
-	Format string
+	MinArgs int
 	Handler HandlerFunc
 	Owner IPlugin
 	ValidTypeMask uint32
@@ -241,13 +253,25 @@ func (db *DataBase) RegisterPlugins(plugins ...IPlugin) {
 
 func (db *DataBase) HandleCommand(cmd *Command) (*Result, error) {
 
-	//get the right command handler for the command
+	//make all commands uppercase
+	cmd.Command = strings.ToUpper(cmd.Command)
 
+	//get the right command handler for the command
 	commandDesc := db.commands[cmd.Command]
 
 	//if this is an unknown command - return error
 	if commandDesc == nil {
-		return NewResult(Error{E_INVALID_COMMAND}), fmt.Errorf("Could not find suitable command handler for %s", cmd.Command)
+		return NewResult(&Error{E_INVALID_COMMAND}), fmt.Errorf("Could not find suitable command handler for %s", cmd.Command)
+
+	}
+
+	//validate a minimum amount of argumens
+	if commandDesc.MinArgs > len(cmd.Args) {
+		return NewResult(&Error{E_NOT_ENOUGH_PARAMS}),
+						fmt.Errorf("Expected at least %d params for command %s, got %d",
+							commandDesc.MinArgs,
+							cmd.Command,
+							len(cmd.Args))
 
 	}
 
@@ -270,9 +294,14 @@ func (db *DataBase) HandleCommand(cmd *Command) (*Result, error) {
 
 		db.LockKey(cmd.Key, commandDesc.CommandType)
 
+
+		defer func() {
+
+			db.UnlockKey(cmd.Key, commandDesc.CommandType)
+		}()
+
 		ret := commandDesc.Handler(cmd, entry)
 
-		db.UnlockKey(cmd.Key, commandDesc.CommandType)
 
 		return ret, nil
 	}

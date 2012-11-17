@@ -15,6 +15,7 @@ import (
 	"net"
 	hash_table "plugins/hash_table"
 	simple "plugins/simple"
+	ptree "plugins/prefix_tree"
 	"runtime"
 )
 
@@ -26,7 +27,8 @@ func main() {
 	database := db.NewDataBase()
 	ht := new(hash_table.HashTablePlugin)
 	smp := new(simple.SimplePlugin)
-	database.RegisterPlugins(ht, smp)
+	ptree := new (ptree.PrefixTreePlugin)
+	database.RegisterPlugins(ht, smp, ptree)
 
 	_ = database.LoadDump()
 
