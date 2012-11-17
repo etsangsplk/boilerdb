@@ -46,7 +46,7 @@ func (r *RedisAdapter) SerializeResponse(res *db.Result, writer io.Writer) strin
 			break
 		case reflect.Slice, reflect.Array:
 			l := res.Len()
-			writer.Write([]byte(string("*") + string(l)))
+			writer.Write([]byte(fmt.Sprintf("*%d\r\n", l)))
 
 			for i := 0; i < l; i++ {
 				v := res.Index(i).String()
@@ -73,12 +73,13 @@ func (r *RedisAdapter) SerializeResponse(res *db.Result, writer io.Writer) strin
 
 			e, ok := __value.Interface().(*db.Error)
 			if ok {
-				writer.Write([]byte(fmt.Sprintf("-ERR %d\r\n", e.Code)))
+				writer.Write([]byte(fmt.Sprintf("-ERR %d: %s\r\n", e.Code, e.ToString())))
 				break
 			}
 
 			writer.Write([]byte(fmt.Sprintf("-ERR Unknown type\r\n")))
 			break
+
 	default:
 			s := res.String()
 			writer.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(s), s)))
@@ -93,18 +94,24 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 	reader := bufio.NewReader(c)
 	writer := bufio.NewWriter(c)
 
-	defer func(err *error) {
+	defer func(err *error, writer *bufio.Writer) {
 		if e := recover(); e != nil {
-			log.Println(e)
 			*err = e.(error)
+			r.SerializeResponse(db.NewResult(db.NewError(db.E_UNKNOWN_ERROR)), writer)
+			writer.Flush()
+			c.Close()
+			log.Printf("Error processing command: %s\n", e)
+
 		}
-	}(&err)
+	}(&err, writer)
+
 
 	for err == nil && r.isRunning {
 		cmd, err := ReadRequest(reader)
 
 		if err != nil {
 			log.Println("Quitting!", err)
+
 		} else {
 			ret, _ := r.db.HandleCommand(cmd)
 
