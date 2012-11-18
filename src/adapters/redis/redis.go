@@ -38,12 +38,12 @@ func (r *RedisAdapter) Listen(addr net.Addr) error {
 
 func (r *RedisAdapter) SerializeResponse(res *db.Result, writer io.Writer) string {
 	switch (res.Kind()) {
-	case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			writer.Write([]byte(":" + string(res.Int()) + "\r\n"))
-			break
+		case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				writer.Write([]byte(fmt.Sprintf(":%d\r\n", res.Int())))
+				break
 		case reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			writer.Write([]byte(":" + string(res.Uint()) + "\r\n"))
-			break
+				writer.Write([]byte(fmt.Sprintf(":%d\r\n", res.Uint())))
+				break
 		case reflect.Slice, reflect.Array:
 			l := res.Len()
 			writer.Write([]byte(fmt.Sprintf("*%d\r\n", l)))
