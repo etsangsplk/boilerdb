@@ -14,8 +14,9 @@ import (
 	"log"
 	"net"
 	hash_table "plugins/hash_table"
-	simple "plugins/simple"
 	ptree "plugins/prefix_tree"
+	simple "plugins/simple"
+	system "plugins/system"
 	"runtime"
 )
 
@@ -24,11 +25,12 @@ import (
 func main() {
 
 	runtime.GOMAXPROCS(8)
-	database := db.NewDataBase()
+	database := db.InitGlobalDataBase()
 	ht := new(hash_table.HashTablePlugin)
 	smp := new(simple.SimplePlugin)
-	ptree := new (ptree.PrefixTreePlugin)
-	database.RegisterPlugins(ht, smp, ptree)
+	ptree := new(ptree.PrefixTreePlugin)
+	sys := new(system.SystemPlugin)
+	database.RegisterPlugins(ht, smp, ptree, sys)
 
 	_ = database.LoadDump()
 
@@ -47,6 +49,7 @@ func main() {
 
 		fmt.Printf("Go..\n")
 		adap.Start()
+
 	}
 	//fmt.Println(ret)
 	for i := 0; i < 10; i++ {

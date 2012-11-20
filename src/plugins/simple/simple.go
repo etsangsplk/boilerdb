@@ -12,16 +12,19 @@ import (
 	"db"
 //	"io"
 	gob "encoding/gob"
+	"log"
+	"bytes"
 )
 
 
 type SimpleStruct struct {
-	val string
+	Val string
 }
 
 func (ht *SimpleStruct)Serialize(g *gob.Encoder) error {
 
 	err := g.Encode(ht)
+
 	return err
 }
 
@@ -35,15 +38,27 @@ type SimplePlugin struct {
 func HandleSET(cmd *db.Command, entry *db.Entry) *db.Result {
 
 	obj := entry.Value.(*SimpleStruct)
-	obj.val = string(cmd.Args[0])
+	obj.Val = string(cmd.Args[0])
 
 	return db.NewResult(db.NewStatus("OK"))
 
 }
 func HandleGET(cmd *db.Command, entry *db.Entry) *db.Result {
-	obj := entry.Value.(*SimpleStruct)
-	r := db.NewResult(obj.val)
-	return r
+
+	if entry != nil {
+		obj := entry.Value.(*SimpleStruct)
+		r := db.NewResult(obj.Val)
+		return r
+	}
+
+	return nil
+
+}
+
+func HandleEXISTS(cmd *db.Command, entry *db.Entry) *db.Result {
+
+
+	return db.NewResult(entry != nil)
 }
 
 func HandlePING(cmd *db.Command, entry *db.Entry) *db.Result {
@@ -59,8 +74,28 @@ func (p *SimplePlugin)CreateObject() *db.Entry {
 	return ret
 }
 
+//deserialize and create a db entry
 func (p *SimplePlugin)LoadObject(buf []byte, t uint32) *db.Entry {
-return nil
+
+	if t == db.T_STRING {
+		var s SimpleStruct
+		buffer := bytes.NewBuffer(buf)
+		dec := gob.NewDecoder(buffer)
+		err := dec.Decode(&s)
+		if err != nil {
+			log.Printf("Could not deserialize oject: %s", err)
+			return nil
+		}
+
+		return &db.Entry{
+			Value: &s,
+			Type: db.T_STRING,
+		}
+	} else {
+		log.Printf("Could not load value, invalid type %d", t)
+	}
+	return nil
+
 }
 
 
@@ -68,9 +103,10 @@ func (p *SimplePlugin)GetCommands() []db.CommandDescriptor {
 
 
 	return []db.CommandDescriptor {
-		db.CommandDescriptor{"SET",2, HandleSET, p, 0, db.CMD_WRITER},
-		db.CommandDescriptor{"GET", 1, HandleGET, p, 0, db.CMD_READER},
-		db.CommandDescriptor{"PING",1, HandlePING, p, 0, db.CMD_READER},
+		db.CommandDescriptor{"SET",1, HandleSET, p, 0, db.CMD_WRITER},
+		db.CommandDescriptor{"GET", 0, HandleGET, p, 0, db.CMD_READER},
+		db.CommandDescriptor{"PING",0, HandlePING, p, 0, db.CMD_READER},
+		db.CommandDescriptor{"EXISTS", 0, HandleEXISTS, p, 0, db.CMD_READER},
 
 	}
 }

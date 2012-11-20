@@ -10,6 +10,8 @@ import (
 	"io"
 	"db"
 	"reflect"
+	"runtime/debug"
+
 )
 
 type RedisAdapter struct {
@@ -36,23 +38,45 @@ func (r *RedisAdapter) Listen(addr net.Addr) error {
 	return nil
 }
 
+
+
 func (r *RedisAdapter) SerializeResponse(res *db.Result, writer io.Writer) string {
-	switch (res.Kind()) {
-	case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			writer.Write([]byte(":" + string(res.Int()) + "\r\n"))
-			break
+
+	//for nil values we write nil yo...
+	if res == nil {
+
+		writer.Write([]byte("$-1\r\n"))
+		return ""
+	}
+	kind := res.Kind()
+
+	switch (kind) {
+
+
+		case reflect.Bool:
+			boolVal := res.Bool()
+			intVal := 0
+			if boolVal {
+				intVal = 1
+			}
+			writer.Write([]byte(fmt.Sprintf(":%d\r\n", intVal )))
+
+		case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			writer.Write([]byte(fmt.Sprintf(":%d\r\n", res.Int())))
+
 		case reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			writer.Write([]byte(":" + string(res.Uint()) + "\r\n"))
-			break
+			writer.Write([]byte(fmt.Sprintf(":%d\r\n", res.Uint())))
+
 		case reflect.Slice, reflect.Array:
 			l := res.Len()
 			writer.Write([]byte(fmt.Sprintf("*%d\r\n", l)))
 
 			for i := 0; i < l; i++ {
+
 				v := res.Index(i).String()
 				writer.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(v), v)))
 			}
-			break
+
 		case reflect.Map:
 			l := res.Len()*2
 			writer.Write([]byte(fmt.Sprintf("*%d\r\n", l)))
@@ -61,7 +85,7 @@ func (r *RedisAdapter) SerializeResponse(res *db.Result, writer io.Writer) strin
 				v := string(res.MapIndex(k).Bytes())
 				writer.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n$%d\r\n%s\r\n", len(k.String()), k.String(), len(v), v)))
 			}
-			break
+
 		case reflect.Ptr:
 			__value := *res
 
@@ -78,7 +102,7 @@ func (r *RedisAdapter) SerializeResponse(res *db.Result, writer io.Writer) strin
 			}
 
 			writer.Write([]byte(fmt.Sprintf("-ERR Unknown type\r\n")))
-			break
+
 
 	default:
 			s := res.String()
@@ -100,7 +124,10 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 			r.SerializeResponse(db.NewResult(db.NewError(db.E_UNKNOWN_ERROR)), writer)
 			writer.Flush()
 			c.Close()
+
 			log.Printf("Error processing command: %s\n", e)
+			debug.PrintStack()
+
 
 		}
 	}(&err, writer)
@@ -115,10 +142,9 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 		} else {
 			ret, _ := r.db.HandleCommand(cmd)
 
-			if ret != nil {
-				r.SerializeResponse(ret, writer)
-				err = writer.Flush()
-			}
+			r.SerializeResponse(ret, writer)
+			err = writer.Flush()
+
 		}
 	}
 
