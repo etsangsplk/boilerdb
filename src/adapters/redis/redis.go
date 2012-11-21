@@ -1,24 +1,23 @@
 package redis
 
 import (
-	"net"
-	"log"
-	"strconv"
+	"bufio"
+	"db"
 	"errors"
 	"fmt"
-	"bufio"
 	"io"
-	"db"
+	"log"
+	"net"
 	"reflect"
 	"runtime/debug"
-
+	"strconv"
 )
 
 type RedisAdapter struct {
-	db *db.DataBase
-	listener net.Listener
+	db         *db.DataBase
+	listener   net.Listener
 	numClients uint
-	isRunning bool
+	isRunning  bool
 }
 
 var globalDict map[string][]byte = make(map[string][]byte)
@@ -38,8 +37,6 @@ func (r *RedisAdapter) Listen(addr net.Addr) error {
 	return nil
 }
 
-
-
 func (r *RedisAdapter) SerializeResponse(res *db.Result, writer io.Writer) string {
 
 	//for nil values we write nil yo...
@@ -50,63 +47,61 @@ func (r *RedisAdapter) SerializeResponse(res *db.Result, writer io.Writer) strin
 	}
 	kind := res.Kind()
 
-	switch (kind) {
+	switch kind {
 
+	case reflect.Bool:
+		boolVal := res.Bool()
+		intVal := 0
+		if boolVal {
+			intVal = 1
+		}
+		writer.Write([]byte(fmt.Sprintf(":%d\r\n", intVal)))
 
-		case reflect.Bool:
-			boolVal := res.Bool()
-			intVal := 0
-			if boolVal {
-				intVal = 1
-			}
-			writer.Write([]byte(fmt.Sprintf(":%d\r\n", intVal )))
+	case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		writer.Write([]byte(fmt.Sprintf(":%d\r\n", res.Int())))
 
-		case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			writer.Write([]byte(fmt.Sprintf(":%d\r\n", res.Int())))
+	case reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		writer.Write([]byte(fmt.Sprintf(":%d\r\n", res.Uint())))
 
-		case reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			writer.Write([]byte(fmt.Sprintf(":%d\r\n", res.Uint())))
+	case reflect.Slice, reflect.Array:
+		l := res.Len()
+		writer.Write([]byte(fmt.Sprintf("*%d\r\n", l)))
 
-		case reflect.Slice, reflect.Array:
-			l := res.Len()
-			writer.Write([]byte(fmt.Sprintf("*%d\r\n", l)))
+		for i := 0; i < l; i++ {
 
-			for i := 0; i < l; i++ {
+			v := res.Index(i).String()
+			writer.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(v), v)))
+		}
 
-				v := res.Index(i).String()
-				writer.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(v), v)))
-			}
+	case reflect.Map:
+		l := res.Len() * 2
+		writer.Write([]byte(fmt.Sprintf("*%d\r\n", l)))
 
-		case reflect.Map:
-			l := res.Len()*2
-			writer.Write([]byte(fmt.Sprintf("*%d\r\n", l)))
+		for _, k := range res.MapKeys() {
+			v := string(res.MapIndex(k).Bytes())
+			writer.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n$%d\r\n%s\r\n", len(k.String()), k.String(), len(v), v)))
+		}
 
-			for _, k := range(res.MapKeys()) {
-				v := string(res.MapIndex(k).Bytes())
-				writer.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n$%d\r\n%s\r\n", len(k.String()), k.String(), len(v), v)))
-			}
+	case reflect.Ptr:
+		__value := *res
 
-		case reflect.Ptr:
-			__value := *res
+		s, ok := __value.Interface().(*db.Status)
+		if ok {
+			writer.Write([]byte(fmt.Sprintf("+%s\r\n", s.Str)))
+			break
+		}
 
-			s, ok := __value.Interface().(*db.Status)
-			if ok {
-				writer.Write([]byte(fmt.Sprintf("+%s\r\n", s.Str)))
-				break
-			}
+		e, ok := __value.Interface().(*db.Error)
+		if ok {
+			writer.Write([]byte(fmt.Sprintf("-ERR %d: %s\r\n", e.Code, e.ToString())))
+			break
+		}
 
-			e, ok := __value.Interface().(*db.Error)
-			if ok {
-				writer.Write([]byte(fmt.Sprintf("-ERR %d: %s\r\n", e.Code, e.ToString())))
-				break
-			}
-
-			writer.Write([]byte(fmt.Sprintf("-ERR Unknown type\r\n")))
-
+		writer.Write([]byte(fmt.Sprintf("-ERR Unknown type\r\n")))
 
 	default:
-			s := res.String()
-			writer.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(s), s)))
+		s := res.String()
+		writer.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(s), s)))
 	}
 
 	return ""
@@ -115,12 +110,18 @@ func (r *RedisAdapter) SerializeResponse(res *db.Result, writer io.Writer) strin
 func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 	var err error = nil
 
-	reader := bufio.NewReader(c)
+	reader := bufio.NewReaderSize(c, 8192)
 	writer := bufio.NewWriter(c)
 
 	defer func(err *error, writer *bufio.Writer) {
 		if e := recover(); e != nil {
+
+			defer func() {
+				_ = recover()
+			}()
+
 			*err = e.(error)
+
 			r.SerializeResponse(db.NewResult(db.NewError(db.E_UNKNOWN_ERROR)), writer)
 			writer.Flush()
 			c.Close()
@@ -128,25 +129,39 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 			log.Printf("Error processing command: %s\n", e)
 			debug.PrintStack()
 
-
 		}
 	}(&err, writer)
+	c.SetNoDelay(true)
+	c.SetReadBuffer(8192)
+	ch := make(chan *db.Result, 10)
 
+	go func() {
+
+		for {
+
+			msg := <-ch
+			r.SerializeResponse(msg, writer)
+			err = writer.Flush()
+			if err != nil {
+				break
+			}
+
+		}
+		fmt.Printf("Stopping....\n")
+	}()
 
 	for err == nil && r.isRunning {
 		cmd, err := ReadRequest(reader)
-
 		if err != nil {
 			log.Println("Quitting!", err)
 
 		} else {
 			ret, _ := r.db.HandleCommand(cmd)
-
-			r.SerializeResponse(ret, writer)
-			err = writer.Flush()
+			ch <- ret
 
 		}
 	}
+
 
 	c.Close()
 	return err
@@ -185,19 +200,21 @@ func ReadRequest(reader *bufio.Reader) (cmd *db.Command, err error) {
 	buf := readToCRLF(reader)
 
 	switch buf[0] {
-		case '*': {
-			ll, err  := strconv.Atoi(string(buf[1:]))
+	case '*':
+		{
+			ll, err := strconv.Atoi(string(buf[1:]))
 			if err == nil {
 				res := readMultiBulkData(reader, ll)
 				if len(res) > 1 {
-					return &db.Command{Command: string(res[0]), Key: string(res[1]), Args: res[2:], }, nil
+					return &db.Command{Command: string(res[0]), Key: string(res[1]), Args: res[2:]}, nil
 
 				} else {
-					return &db.Command{Command: string(res[0]), Key: "", Args: nil, }, nil
+					return &db.Command{Command: string(res[0]), Key: "", Args: nil}, nil
 				}
 			}
 		}
-		default: {
+	default:
+		{
 			return &db.Command{Command: string(buf), Args: nil}, nil
 		}
 	}
@@ -218,12 +235,9 @@ func assertNotError(e error, info string) {
 	}
 }
 
-
-
 // ----------------------------------------------------------------------
 // Go-Redis System Errors or Bugs
 // ----------------------------------------------------------------------
-
 
 // ----------------------------------------------------------------------------
 // protocol i/o
@@ -247,7 +261,6 @@ const (
 	num_byte        = byte(':')
 	true_byte       = byte('1')
 )
-
 
 func readToCRLF(r *bufio.Reader) []byte {
 	//	var buf []byte
@@ -306,4 +319,3 @@ func readMultiBulkData(conn *bufio.Reader, num int) [][]byte {
 	}
 	return data
 }
-

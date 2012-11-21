@@ -24,7 +24,7 @@ import (
 
 func main() {
 
-	runtime.GOMAXPROCS(8)
+	runtime.GOMAXPROCS(runtime.NumCPU()*2)
 	database := db.InitGlobalDataBase()
 	ht := new(hash_table.HashTablePlugin)
 	smp := new(simple.SimplePlugin)
@@ -57,6 +57,6 @@ func main() {
 		_, _ = database.HandleCommand(&cmd)
 
 	}
-	_, _ = database.Dump()
+	//_, _ = database.Dump()
 
 }

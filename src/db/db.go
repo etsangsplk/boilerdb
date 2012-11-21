@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"config"
 	gob "encoding/gob"
+
 	"fmt"
 	"io"
 	"log"
@@ -64,6 +65,7 @@ type DataStruct interface {
 type Entry struct {
 	Value DataStruct
 	Type  uint32
+	saveId uint8
 }
 
 type SerializedEntry struct {
@@ -111,12 +113,16 @@ type DataBase struct {
 	dictLock   sync.Mutex
 	saveLock   sync.RWMutex
 	types      map[uint32]*IPlugin
+
+	currentSaveId uint8
+	BGsaveInProgress bool
+	bgsaveTempKeys map[string]*SerializedEntry
 }
 
 var DB *DataBase = nil
 
-type KeyLock struct {
-	sync.RWMutex
+type KeyLock struct 
+{	sync.RWMutex
 	refCount int
 }
 
@@ -128,6 +134,8 @@ func InitGlobalDataBase() *DataBase {
 		dictLock:   sync.Mutex{},
 		saveLock:   sync.RWMutex{},
 		types:      make(map[uint32]*IPlugin),
+		currentSaveId: 0,
+		BGsaveInProgress: false,
 	}
 	return DB
 }
@@ -266,23 +274,37 @@ func (db *DataBase) HandleCommand(cmd *Command) (*Result, error) {
 			if commandDesc.CommandType == CMD_WRITER {
 
 				entry = commandDesc.Owner.CreateObject()
+
 				//if the entry is nil - we do nothing for the tree
 				if entry != nil {
-
+					entry.saveId = db.currentSaveId
 					db.dictionary[cmd.Key] = entry
 				}
 			}
 
 		}
 		db.dictLock.Unlock()
-		if entry != nil {
 
+		if entry != nil {
+			//lock the entry for reading or writing
 			db.LockKey(cmd.Key, commandDesc.CommandType)
 
 			defer func() {
 
 				db.UnlockKey(cmd.Key, commandDesc.CommandType)
 			}()
+
+			//we need to persist this entry to the temp persist dictionary! it is about to be persisted
+			if commandDesc.CommandType == CMD_WRITER &&
+					db.BGsaveInProgress && entry.saveId != db.currentSaveId {
+				serialized, err := db.serializeEntry(entry, cmd.Key)
+				if err == nil {
+					db.bgsaveTempKeys[cmd.Key] = serialized
+					log.Printf("Temp persisted %s", cmd.Key)
+				}
+
+			}
+
 		}
 		ret := commandDesc.Handler(cmd, entry)
 
@@ -292,8 +314,37 @@ func (db *DataBase) HandleCommand(cmd *Command) (*Result, error) {
 	return commandDesc.Handler(cmd, nil), nil
 }
 
-func (db *DataBase) Dump() (int64, error) {
+//serialize a single entry
+func (db *DataBase) serializeEntry(entry *Entry, k string) (*SerializedEntry, error) {
 
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	err := entry.Value.Serialize(enc)
+	if err != nil {
+		log.Printf("Could not serialize entry: %s", err)
+		return nil, err
+	}
+	serialized := SerializedEntry{buf.Bytes(), uint64(buf.Len()), entry.Type, k}
+	return &serialized, nil
+
+}
+func (db *DataBase) Dump(bgsave bool) (int64, error) {
+
+	if db.BGsaveInProgress {
+		log.Printf("BGSave in progress")
+		return 0, fmt.Errorf("BGSave in progress")
+	}
+
+	db.BGsaveInProgress = true
+	db.bgsaveTempKeys = make(map[string]*SerializedEntry)
+
+	saveId := db.currentSaveId
+	db.currentSaveId++
+
+	//make sure we release the save flag
+	defer func() { db.BGsaveInProgress = false }()
+
+	log.Printf("Starting BGSAVE...")
 	//open the dump file for writing
 	fp, err := os.Create(fmt.Sprintf("%s/%s", config.WORKING_DIRECTORY, "dump.bdb"))
 	if err != nil {
@@ -301,28 +352,44 @@ func (db *DataBase) Dump() (int64, error) {
 		return 0, err
 	}
 
-	var buf bytes.Buffer
 
 	globalEnc := gob.NewEncoder(fp)
 
 	for k := range db.dictionary {
 
-		enc := gob.NewEncoder(&buf)
-		entry := db.dictionary[k]
-
-		err := entry.Value.Serialize(enc)
-		if err != nil {
-			log.Printf("Could not serialize entry %s: %s", entry, err)
-			buf.Truncate(0)
+		//try to save from temp dict
+		tmpSE := db.bgsaveTempKeys[k]
+		if tmpSE != nil {
+			fmt.Printf("getting temp serialized...")
+			globalEnc.Encode(tmpSE)
+			delete(db.bgsaveTempKeys, k)
 			continue
 		}
-		//fmt.Printf("Serialzed %s. err: %s\n", entry, err)
 
-		serialized := SerializedEntry{buf.Bytes(), uint64(buf.Len()), entry.Type, k}
-		globalEnc.Encode(&serialized)
-		buf.Truncate(0)
+		db.LockKey(k, CMD_WRITER)
+		entry := db.dictionary[k]
+
+		//if the save ids do not match - no need to save
+		if entry.saveId != saveId {
+			log.Printf("Skipping new entry %s", k)
+			db.UnlockKey(k, CMD_WRITER)
+			continue
+		}
+
+		entry.saveId = db.currentSaveId
+
+		serialized, err := db.serializeEntry(entry, k)
+
+		db.UnlockKey(k, CMD_WRITER)
+		if err != nil {
+			log.Printf("Could not serialize entry %s: %s", entry, err)
+			continue
+		}
+		globalEnc.Encode(serialized)
+
 
 	}
+	//TODO: iterate the temp dictionary for deleted keys
 
 	fp.Close()
 	return 0, nil
