@@ -113,11 +113,19 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 	reader := bufio.NewReaderSize(c, 8192)
 	writer := bufio.NewWriter(c)
 
+	//mark start and end of session to track number of sessions on the server
+	db.DB.SessionStart()
+	defer db.DB.SessionEnd()
+
+	//error handler - write an error message to the socket and close it
 	defer func(err *error, writer *bufio.Writer) {
 		if e := recover(); e != nil {
 
 			defer func() {
-				_ = recover()
+				ee := recover()
+				if ee != nil {
+					log.Printf("Error handling error :) %s", ee)
+				}
 			}()
 
 			*err = e.(error)
@@ -131,34 +139,63 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 
 		}
 	}(&err, writer)
-	c.SetNoDelay(true)
-	c.SetReadBuffer(8192)
-	ch := make(chan *db.Result, 10)
 
+	//c.SetNoDelay(true)
+	//c.SetReadBuffer(4)
+
+	searilzerChan := make(chan *db.Result, 10)
+	processorChan := make(chan *db.Command, 5)
+
+	running := true
+
+	//this goroutine actually handles processing and writing to the
 	go func() {
 
-		for {
+		for running {
 
-			msg := <-ch
+			msg := <-searilzerChan
 			r.SerializeResponse(msg, writer)
 			err = writer.Flush()
 			if err != nil {
+
+				running = false
 				break
+
 			}
 
 		}
-		fmt.Printf("Stopping....\n")
+		fmt.Printf("Stopping Serializer....\n")
 	}()
 
-	for err == nil && r.isRunning {
+
+	//a go routine that processes the requests from the parsed channel and pushes the responses to the serializer channel
+	go func() {
+		for running {
+
+			cmd := <-processorChan
+			ret, _ := r.db.HandleCommand(cmd)
+			searilzerChan <- ret
+
+		}
+		fmt.Printf("Stopping Processor....\n")
+	}()
+
+
+	//the request reading loop
+	for err == nil && r.isRunning && running {
+
+		//read an parse the request
 		cmd, err := ReadRequest(reader)
+
 		if err != nil {
 			log.Println("Quitting!", err)
+			break
 
 		} else {
-			ret, _ := r.db.HandleCommand(cmd)
-			ch <- ret
 
+			processorChan <- cmd
+//			ret, _ := r.db.HandleCommand(cmd)
+//			searilzerChan <- ret
 		}
 	}
 

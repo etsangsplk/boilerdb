@@ -19,6 +19,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 //	"bufio"
 
@@ -114,10 +115,26 @@ type DataBase struct {
 	saveLock   sync.RWMutex
 	types      map[uint32]*IPlugin
 
+	//save status
 	currentSaveId uint8
 	BGsaveInProgress bool
+	LastSaveTime time.Time
+
+	//tmp keys for bgsaving
 	bgsaveTempKeys map[string]*SerializedEntry
+
+	Stats struct {
+		//number of current sessions
+		ActiveSessions int
+		CommandsProcessed int64
+		TotalSessions int64
+		RegisteredPlugins int
+		RegisteredCommands int
+
+	}
 }
+
+
 
 var DB *DataBase = nil
 
@@ -136,10 +153,14 @@ func InitGlobalDataBase() *DataBase {
 		types:      make(map[uint32]*IPlugin),
 		currentSaveId: 0,
 		BGsaveInProgress: false,
+
 	}
 	return DB
 }
 
+func (db *DataBase) Size() int {
+	return len(db.dictionary)
+}
 func (db *DataBase) Lockdown() {
 	db.saveLock.RUnlock()
 	db.saveLock.Lock()
@@ -149,6 +170,14 @@ func (db *DataBase) UNLockdown() {
 	db.saveLock.RLock()
 }
 
+func (db *DataBase) SessionStart() {
+	db.Stats.ActiveSessions++
+	db.Stats.TotalSessions++
+}
+
+func (db *DataBase) SessionEnd() {
+	db.Stats.ActiveSessions--
+}
 func (db *DataBase) registerCommand(cd CommandDescriptor) {
 
 	//make sure we don't double register a command
@@ -232,11 +261,14 @@ func (db *DataBase) RegisterPlugins(plugins ...IPlugin) {
 		}
 	}
 	fmt.Printf("Registered %d plugins and %d commands\n", len(plugins), totalCommands)
+	db.Stats.RegisteredCommands = totalCommands
+	db.Stats.RegisteredPlugins = len(plugins)
 
 }
 
 func (db *DataBase) HandleCommand(cmd *Command) (*Result, error) {
 
+	db.Stats.CommandsProcessed++
 	//lock the save mutex for reading so we won't access it while saving
 	db.saveLock.RLock()
 	defer func() { db.saveLock.RUnlock() }()
@@ -328,10 +360,13 @@ func (db *DataBase) serializeEntry(entry *Entry, k string) (*SerializedEntry, er
 	return &serialized, nil
 
 }
-func (db *DataBase) Dump(bgsave bool) (int64, error) {
+func (db *DataBase) Dump() (int64, error) {
+
+	db.dictLock.Lock()
 
 	if db.BGsaveInProgress {
 		log.Printf("BGSave in progress")
+		db.dictLock.Unlock()
 		return 0, fmt.Errorf("BGSave in progress")
 	}
 
@@ -340,6 +375,7 @@ func (db *DataBase) Dump(bgsave bool) (int64, error) {
 
 	saveId := db.currentSaveId
 	db.currentSaveId++
+	db.dictLock.Unlock()
 
 	//make sure we release the save flag
 	defer func() { db.BGsaveInProgress = false }()
@@ -357,16 +393,17 @@ func (db *DataBase) Dump(bgsave bool) (int64, error) {
 
 	for k := range db.dictionary {
 
+		db.LockKey(k, CMD_WRITER)
 		//try to save from temp dict
 		tmpSE := db.bgsaveTempKeys[k]
 		if tmpSE != nil {
 			fmt.Printf("getting temp serialized...")
 			globalEnc.Encode(tmpSE)
 			delete(db.bgsaveTempKeys, k)
+			db.UnlockKey(k, CMD_WRITER)
 			continue
 		}
 
-		db.LockKey(k, CMD_WRITER)
 		entry := db.dictionary[k]
 
 		//if the save ids do not match - no need to save
