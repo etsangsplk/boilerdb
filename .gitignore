@@ -1,3 +1,7 @@
 .idea
 out
 tmp
+pkg
+/bin/main
+/boiler.sublime-project
+/boiler.sublime-workspace
