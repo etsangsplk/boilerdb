@@ -33,7 +33,7 @@ type HashTablePlugin struct {
 
 }
 
-func HandleHSET(cmd *db.Command, entry *db.Entry) *db.Result {
+func HandleHSET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 
 	obj := entry.Value.(*HashTableStruct)
 	//fmt.Printf("%p %p %s\n", &obj, &(obj.table), obj.table)
@@ -42,14 +42,14 @@ func HandleHSET(cmd *db.Command, entry *db.Entry) *db.Result {
 	return db.NewResult(db.NewStatus("OK"))
 
 }
-func HandleHGET(cmd *db.Command, entry *db.Entry) *db.Result {
+func HandleHGET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 	tbl := entry.Value.(*HashTableStruct)
 
 	r := db.NewResult(string(tbl.Table[string(cmd.Args[0])]))
 	return r
 }
 
-func HandleHGETALL(cmd *db.Command, entry *db.Entry) *db.Result {
+func HandleHGETALL(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 	tbl := entry.Value.(*HashTableStruct)
 	r := db.NewResult(tbl.Table)
 	return r

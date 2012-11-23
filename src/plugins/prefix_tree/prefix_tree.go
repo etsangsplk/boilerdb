@@ -35,7 +35,7 @@ type PrefixTreePlugin struct {
 }
 
 // set handler. sets (or replaces) a key in the tree with a given score
-func HandlePSET(cmd *db.Command, entry *db.Entry) *db.Result {
+func HandlePSET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 
 	pt := entry.Value.(*PrefixTree)
 	
@@ -50,7 +50,7 @@ func HandlePSET(cmd *db.Command, entry *db.Entry) *db.Result {
 }
 
 // increment handler. we can automatically increment the score of a given key
-func HandlePINCRBY(cmd *db.Command, entry *db.Entry) *db.Result {
+func HandlePINCRBY(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 
 	pt := entry.Value.(*PrefixTree)
 	score, err := strconv.ParseFloat(string(cmd.Args[1]), 32)
@@ -65,7 +65,7 @@ func HandlePINCRBY(cmd *db.Command, entry *db.Entry) *db.Result {
 }
 
 // Prefix search handler. the format is "PSEARCH <key> <prefix> [WITHSCORES]"
-func HandlePSEARCH(cmd *db.Command, entry *db.Entry) *db.Result {
+func HandlePSEARCH(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 
 	if entry == nil {
 		return nil
@@ -113,7 +113,7 @@ func HandlePSEARCH(cmd *db.Command, entry *db.Entry) *db.Result {
 }
 
 // Test existence of a key, and return it and its score if it exists
-func HandlePGET(cmd *db.Command, entry *db.Entry) *db.Result {
+func HandlePGET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 
 	if entry == nil {
 		return nil

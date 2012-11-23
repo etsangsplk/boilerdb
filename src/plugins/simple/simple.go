@@ -35,7 +35,7 @@ type SimplePlugin struct {
 
 }
 
-func HandleSET(cmd *db.Command, entry *db.Entry) *db.Result {
+func HandleSET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 
 	obj := entry.Value.(*SimpleStruct)
 	obj.Val = string(cmd.Args[0])
@@ -43,7 +43,7 @@ func HandleSET(cmd *db.Command, entry *db.Entry) *db.Result {
 	return db.NewResult(db.NewStatus("OK"))
 
 }
-func HandleGET(cmd *db.Command, entry *db.Entry) *db.Result {
+func HandleGET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 
 	if entry != nil {
 		obj := entry.Value.(*SimpleStruct)
@@ -55,13 +55,13 @@ func HandleGET(cmd *db.Command, entry *db.Entry) *db.Result {
 
 }
 
-func HandleEXISTS(cmd *db.Command, entry *db.Entry) *db.Result {
+func HandleEXISTS(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 
 
 	return db.NewResult(entry != nil)
 }
 
-func HandlePING(cmd *db.Command, entry *db.Entry) *db.Result {
+func HandlePING(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 	return db.NewResult("PONG")
 }
 

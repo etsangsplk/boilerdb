@@ -113,9 +113,7 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 	reader := bufio.NewReaderSize(c, 8192)
 	writer := bufio.NewWriter(c)
 
-	//mark start and end of session to track number of sessions on the server
-	db.DB.SessionStart()
-	defer db.DB.SessionEnd()
+	session := r.db.NewSession(c.RemoteAddr())
 
 	//error handler - write an error message to the socket and close it
 	defer func(err *error, writer *bufio.Writer) {
@@ -133,6 +131,9 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 			r.SerializeResponse(db.NewResult(db.NewError(db.E_UNKNOWN_ERROR)), writer)
 			writer.Flush()
 			c.Close()
+			if session.IsRunning{
+				session.Stop()
+			}
 
 			log.Printf("Error processing command: %s\n", e)
 			debug.PrintStack()
@@ -140,25 +141,23 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 		}
 	}(&err, writer)
 
-	//c.SetNoDelay(true)
-	//c.SetReadBuffer(4)
 
-	searilzerChan := make(chan *db.Result, 10)
-	processorChan := make(chan *db.Command, 5)
 
-	running := true
+	go session.Run()
 
 	//this goroutine actually handles processing and writing to the
 	go func() {
 
-		for running {
+		for session.IsRunning {
 
-			msg := <-searilzerChan
+			msg := <-session.OutChan
 			r.SerializeResponse(msg, writer)
 			err = writer.Flush()
 			if err != nil {
 
-				running = false
+				if session.IsRunning {
+					session.Stop()
+				}
 				break
 
 			}
@@ -167,22 +166,8 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 		fmt.Printf("Stopping Serializer....\n")
 	}()
 
-
-	//a go routine that processes the requests from the parsed channel and pushes the responses to the serializer channel
-	go func() {
-		for running {
-
-			cmd := <-processorChan
-			ret, _ := r.db.HandleCommand(cmd)
-			searilzerChan <- ret
-
-		}
-		fmt.Printf("Stopping Processor....\n")
-	}()
-
-
 	//the request reading loop
-	for err == nil && r.isRunning && running {
+	for err == nil && r.isRunning && session.IsRunning {
 
 		//read an parse the request
 		cmd, err := ReadRequest(reader)
@@ -193,13 +178,14 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 
 		} else {
 
-			processorChan <- cmd
-//			ret, _ := r.db.HandleCommand(cmd)
-//			searilzerChan <- ret
+			session.InChan <- cmd
 		}
 	}
 
-
+	//stop the session
+	if session.IsRunning{
+		session.Stop()
+	}
 	c.Close()
 	return err
 }

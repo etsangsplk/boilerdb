@@ -35,7 +35,7 @@ func (p *SystemPlugin)CreateObject() *db.Entry {
 
 
 // perform BGSAVE - save the DB returning immediately
-func HandleBGSAVE(cmd *db.Command, entry *db.Entry) *db.Result {
+func HandleBGSAVE(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 
 
 
@@ -55,7 +55,7 @@ func HandleBGSAVE(cmd *db.Command, entry *db.Entry) *db.Result {
 }
 
 //perform blocking save
-func HandleSAVE(cmd *db.Command, entry *db.Entry) *db.Result {
+func HandleSAVE(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 
 
 	db.DB.Lockdown()
@@ -70,7 +70,7 @@ func HandleSAVE(cmd *db.Command, entry *db.Entry) *db.Result {
 	return db.NewResult(db.NewError(db.E_UNKNOWN_ERROR))
 }
 
-func HandleINFO(cmd *db.Command, entry *db.Entry) *db.Result {
+func HandleINFO(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 
 	format := `#BoilerDB
 version: 0.1

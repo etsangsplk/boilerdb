@@ -10,11 +10,12 @@ package db
 import (
 	"bytes"
 	"config"
+	"db/replication"
 	gob "encoding/gob"
-
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"os"
 	"reflect"
 	"strings"
@@ -24,24 +25,6 @@ import (
 //	"bufio"
 
 )
-
-//the command struct
-type Command struct {
-	Command string
-	Key     string
-	Args    [][]byte
-}
-
-func (cmd *Command) HasArg(s string) bool {
-	for i := range cmd.Args {
-		if s == strings.ToUpper(string(cmd.Args[i])) {
-			return true
-		}
-	}
-
-	return false
-
-}
 
 type Result struct {
 	reflect.Value
@@ -64,8 +47,8 @@ type DataStruct interface {
 
 //Dictionary Entry struct
 type Entry struct {
-	Value DataStruct
-	Type  uint32
+	Value  DataStruct
+	Type   uint32
 	saveId uint8
 }
 
@@ -78,7 +61,7 @@ type SerializedEntry struct {
 
 //Command handler function signature.
 //All command handlers should follow it
-type HandlerFunc func(*Command, *Entry) *Result
+type HandlerFunc func(*Command, *Entry, *Session) *Result
 
 const (
 	CMD_WRITER = 1
@@ -107,6 +90,14 @@ type IPlugin interface {
 	LoadObject([]byte, uint32) *Entry
 }
 
+type Session struct {
+	InChan    chan *Command
+	OutChan   chan *Result
+	db        *DataBase
+	Addr      net.Addr
+	IsRunning bool
+}
+
 type DataBase struct {
 	commands   map[string]*CommandDescriptor
 	dictionary map[string]*Entry
@@ -116,44 +107,43 @@ type DataBase struct {
 	types      map[uint32]*IPlugin
 
 	//save status
-	currentSaveId uint8
+	currentSaveId    uint8
 	BGsaveInProgress bool
-	LastSaveTime time.Time
+	LastSaveTime     time.Time
 
 	//tmp keys for bgsaving
 	bgsaveTempKeys map[string]*SerializedEntry
 
+	slaves []replication.Slave
+	
+
 	Stats struct {
 		//number of current sessions
-		ActiveSessions int
-		CommandsProcessed int64
-		TotalSessions int64
-		RegisteredPlugins int
+		ActiveSessions     int
+		CommandsProcessed  int64
+		TotalSessions      int64
+		RegisteredPlugins  int
 		RegisteredCommands int
-
 	}
 }
 
-
-
 var DB *DataBase = nil
 
-type KeyLock struct 
-{	sync.RWMutex
+type KeyLock struct {
+	sync.RWMutex
 	refCount int
 }
 
 func InitGlobalDataBase() *DataBase {
 	DB = &DataBase{
-		commands:   make(map[string]*CommandDescriptor),
-		dictionary: make(map[string]*Entry),
-		lockedKeys: make(map[string]*KeyLock),
-		dictLock:   sync.Mutex{},
-		saveLock:   sync.RWMutex{},
-		types:      make(map[uint32]*IPlugin),
-		currentSaveId: 0,
+		commands:         make(map[string]*CommandDescriptor),
+		dictionary:       make(map[string]*Entry),
+		lockedKeys:       make(map[string]*KeyLock),
+		dictLock:         sync.Mutex{},
+		saveLock:         sync.RWMutex{},
+		types:            make(map[uint32]*IPlugin),
+		currentSaveId:    0,
 		BGsaveInProgress: false,
-
 	}
 	return DB
 }
@@ -170,14 +160,42 @@ func (db *DataBase) UNLockdown() {
 	db.saveLock.RLock()
 }
 
-func (db *DataBase) SessionStart() {
+//create a new session
+
+func (db *DataBase) NewSession(addr net.Addr) *Session {
+
 	db.Stats.ActiveSessions++
 	db.Stats.TotalSessions++
+
+	ret := &Session{
+		InChan:    make(chan *Command, config.IN_CHAN_BUFSIZE),
+		OutChan:   make(chan *Result, config.OUT_CHAN_BUFSIZE),
+		db:        db,
+		Addr:      addr,
+		IsRunning: true,
+	}
+
+	return ret
+
 }
 
-func (db *DataBase) SessionEnd() {
-	db.Stats.ActiveSessions--
+func (s *Session) Run() {
+
+	for s.IsRunning {
+		cmd := <-s.InChan
+		ret, _ := s.db.HandleCommand(cmd, s)
+		s.OutChan <- ret
+
+	}
+	log.Printf("Stopped Session %s....\n", s.Addr)
 }
+
+func (s *Session) Stop() {
+	log.Printf("Stopping Session %s....\n", s.Addr)
+	s.IsRunning = false
+	s.db.Stats.ActiveSessions--
+}
+
 func (db *DataBase) registerCommand(cd CommandDescriptor) {
 
 	//make sure we don't double register a command
@@ -266,7 +284,7 @@ func (db *DataBase) RegisterPlugins(plugins ...IPlugin) {
 
 }
 
-func (db *DataBase) HandleCommand(cmd *Command) (*Result, error) {
+func (db *DataBase) HandleCommand(cmd *Command, session *Session) (*Result, error) {
 
 	db.Stats.CommandsProcessed++
 	//lock the save mutex for reading so we won't access it while saving
@@ -328,7 +346,7 @@ func (db *DataBase) HandleCommand(cmd *Command) (*Result, error) {
 
 			//we need to persist this entry to the temp persist dictionary! it is about to be persisted
 			if commandDesc.CommandType == CMD_WRITER &&
-					db.BGsaveInProgress && entry.saveId != db.currentSaveId {
+				db.BGsaveInProgress && entry.saveId != db.currentSaveId {
 				serialized, err := db.serializeEntry(entry, cmd.Key)
 				if err == nil {
 					db.bgsaveTempKeys[cmd.Key] = serialized
@@ -338,12 +356,12 @@ func (db *DataBase) HandleCommand(cmd *Command) (*Result, error) {
 			}
 
 		}
-		ret := commandDesc.Handler(cmd, entry)
+		ret := commandDesc.Handler(cmd, entry, session)
 
 		return ret, nil
 	}
 
-	return commandDesc.Handler(cmd, nil), nil
+	return commandDesc.Handler(cmd, nil, session), nil
 }
 
 //serialize a single entry
@@ -388,7 +406,6 @@ func (db *DataBase) Dump() (int64, error) {
 		return 0, err
 	}
 
-
 	globalEnc := gob.NewEncoder(fp)
 
 	for k := range db.dictionary {
@@ -423,7 +440,6 @@ func (db *DataBase) Dump() (int64, error) {
 			continue
 		}
 		globalEnc.Encode(serialized)
-
 
 	}
 	//TODO: iterate the temp dictionary for deleted keys

@@ -24,7 +24,7 @@ import (
 
 func main() {
 
-	runtime.GOMAXPROCS(runtime.NumCPU()*2)
+	runtime.GOMAXPROCS(runtime.NumCPU() * 2)
 	database := db.InitGlobalDataBase()
 	ht := new(hash_table.HashTablePlugin)
 	smp := new(simple.SimplePlugin)
@@ -38,6 +38,7 @@ func main() {
 		adap := redis_adapter.RedisAdapter{}
 
 		adap.Init(database)
+		adap.Name()
 		addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:2000")
 		err := adap.Listen(addr)
 
@@ -52,11 +53,11 @@ func main() {
 
 	}
 	//fmt.Println(ret)
-	for i := 0; i < 10; i++ {
-		cmd := db.Command{"HSET", fmt.Sprintf("foo%d", i), [][]byte{[]byte("bar"), []byte("baz")}}
-		_, _ = database.HandleCommand(&cmd)
-
-	}
+//	for i := 0; i < 10; i++ {
+//		cmd := db.Command{"HSET", fmt.Sprintf("foo%d", i), [][]byte{[]byte("bar"), []byte("baz")}}
+//		_, _ = database.HandleCommand(&cmd, nil)
+//
+//	}
 	//_, _ = database.Dump()
 
 }

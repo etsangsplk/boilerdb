@@ -8,5 +8,7 @@
 package config
 
 var (
-WORKING_DIRECTORY = "/tmp"
+	WORKING_DIRECTORY     = "/tmp"
+	IN_CHAN_BUFSIZE   int = 10
+	OUT_CHAN_BUFSIZE  int = 5
 )
