@@ -12,11 +12,13 @@ import (
 	gob "encoding/gob"
 	"strconv"
 	"fmt"
+	"log"
+	"bytes"
 )
 
 type PrefixTree struct {
 
-	root *Node
+	Root *Node
 }
 
 func (ht *PrefixTree)Serialize(g *gob.Encoder) error {
@@ -41,7 +43,7 @@ func HandlePSET(cmd *db.Command, entry *db.Entry) *db.Result {
 	if err != nil {
 		return db.NewResult(db.NewError(db.E_INVALID_PARAMS))
 	}
-	pt.root.set(string(cmd.Args[0]), float32(score) , "")
+	pt.Root.set(string(cmd.Args[0]), float32(score) , "")
 
 	return db.NewResult(db.NewStatus("OK"))
 
@@ -55,7 +57,7 @@ func HandlePINCRBY(cmd *db.Command, entry *db.Entry) *db.Result {
 	if err != nil {
 		return db.NewResult(db.NewError(db.E_INVALID_PARAMS))
 	}
-	newScore := pt.root.increment(string(cmd.Args[0]), float32(score))
+	newScore := pt.Root.increment(string(cmd.Args[0]), float32(score))
 	
 
 	return db.NewResult(fmt.Sprintf("%f", newScore))
@@ -71,7 +73,7 @@ func HandlePSEARCH(cmd *db.Command, entry *db.Entry) *db.Result {
 
 	pt := entry.Value.(*PrefixTree)
 
-	res, _ := pt.root.prefixSearch(string(cmd.Args[0]))
+	res, _ := pt.Root.prefixSearch(string(cmd.Args[0]))
 	var r *db.Result
 	if res != nil {
 
@@ -89,14 +91,16 @@ func HandlePSEARCH(cmd *db.Command, entry *db.Entry) *db.Result {
 		ret := make([]string, num)
 
 		//put the relevant values in place
+		n := 0
 		for i := 0; i < num; i+=step {
-			if res[i] != nil {
-				ret[i] = (res)[i].key
+			if res[n] != nil {
+				ret[i] = (res)[n].Key
 			}
 			//redis doesn't support floats over protocol....
 			if withScores {
-				ret[i+1] = fmt.Sprintf("%f", (res)[i/2].score)
+				ret[i+1] = fmt.Sprintf("%f", (res)[n].Score)
 			}
+			n++
 		}
 
 		r = db.NewResult(ret)
@@ -117,10 +121,10 @@ func HandlePGET(cmd *db.Command, entry *db.Entry) *db.Result {
 
 	pt := entry.Value.(*PrefixTree)
 
-	record := pt.root.get(string(cmd.Args[0]))
+	record := pt.Root.get(string(cmd.Args[0]))
 	var r *db.Result
 	if record != nil {
-		r = db.NewResult([2]string{record.key, fmt.Sprintf("%f", record.score)})
+		r = db.NewResult([2]string{record.Key, fmt.Sprintf("%f", record.Score)})
 	}	else {
 	    r = db.NewResult("")
 	}
@@ -136,10 +140,10 @@ const T_PREFIX_TREE uint32 = 16
 //callback for the database to allocate a new prefix tree
 func (p *PrefixTreePlugin)CreateObject() *db.Entry {
 
-	root := newNode(0, 0)
+	Root := newNode(0, 0)
 
 	//	//root.pos = 0
-	ret := &db.Entry{ Value: &PrefixTree{root},
+	ret := &db.Entry{ Value: &PrefixTree{Root},
 		Type: T_PREFIX_TREE,
 	}
 	//fmt.Println("Created new hash table ", ret)
@@ -148,6 +152,24 @@ func (p *PrefixTreePlugin)CreateObject() *db.Entry {
 
 // de-serialize callback (to be implemented...)
 func (p *PrefixTreePlugin)LoadObject(buf []byte, t uint32) *db.Entry {
+	if t == T_PREFIX_TREE {
+
+		var pt PrefixTree
+		buffer := bytes.NewBuffer(buf)
+		dec := gob.NewDecoder(buffer)
+		err := dec.Decode(&pt)
+		if err != nil {
+			log.Printf("Could not deserialize oject: %s", err)
+			return nil
+		}
+
+		return &db.Entry{
+			Value: &pt,
+			Type: T_PREFIX_TREE,
+		}
+
+	}
+	log.Printf("Invalid type %u. Could not deserialize", t)
 	return nil
 }
 

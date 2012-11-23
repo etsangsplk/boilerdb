@@ -11,44 +11,44 @@ import (
 
 
 type Record struct {
-	key string
+	Key string
 	//value string
-	score float32
+	Score float32
 }
 
 func (r Record) GetScore() float32 {
-	return r.score
+	return r.Score
 }
 
 
 type Node struct {
-	char uint8
+	Char uint8
 	//pos uint16
-	children []*Node
-	record   *Record
+	Children []*Node
+	Record   *Record
 }
 
 func newNode(pos uint16, char uint8) *Node {
 
 	ret := new(Node)
 	//ret.pos = pos
-	ret.char = char
-	ret.children = make([]*Node, 0)
+	ret.Char = char
+	ret.Children = make([]*Node, 0)
 
-	ret.record = nil
+	ret.Record = nil
 	return ret
 
 }
 
 func (n *Node) _findChild(char uint8) (*Node, bool) {
 
-	for i := 0; i < len(n.children); i++ {
+	for i := 0; i < len(n.Children); i++ {
 
-		//fmt.Printf("Comparing %c to %c\n", n.children[i].char, char)
-		if n.children[i].char == char {
+		//fmt.Printf("Comparing %c to %c\n", n.Children[i].Char, char)
+		if n.Children[i].Char == char {
 			//fmt.Println("Found!")
 
-			return n.children[i], true
+			return n.Children[i], true
 
 		}
 	}
@@ -73,7 +73,7 @@ func (n *Node) set(key string, score float32, value string) {
 		} else { //nothing for this prefix - create a new node
 
 			child := newNode(uint16(pos), key[pos])
-			current.children = append(current.children, child)
+			current.Children = append(current.Children, child)
 
 			current = child
 
@@ -83,17 +83,17 @@ func (n *Node) set(key string, score float32, value string) {
 
 	//Create the new record and append it to the last node we've iterated/created
 
-	if current.record != nil {
+	if current.Record != nil {
 
-		if score > current.record.score {
-			current.record.score = score
+		if score > current.Record.Score {
+			current.Record.Score = score
 		}
 	} else {
-		current.record = new(Record)
-		current.record.key = key
-		current.record.score = score
+		current.Record = new(Record)
+		current.Record.Key = key
+		current.Record.Score = score
 	}
-	//current.record.value = value
+	//current.Record.value = value
 }
 
 ///insert a new record into the index
@@ -112,7 +112,7 @@ func (n *Node) increment(key string, amount float32) float32 {
 		} else { //nothing for this prefix - create a new node
 
 			child := newNode(uint16(pos), key[pos])
-			current.children[key[pos]] = child
+			current.Children[key[pos]] = child
 
 			current = child
 		}
@@ -121,16 +121,16 @@ func (n *Node) increment(key string, amount float32) float32 {
 
 	//Create the new record and append it to the last node we've iterated/created
 
-	if current.record != nil {
-		current.record.score += amount
+	if current.Record != nil {
+		current.Record.Score += amount
 
 	} else {
-		current.record = new(Record)
-		current.record.key = key
-		current.record.score = amount
+		current.Record = new(Record)
+		current.Record.Key = key
+		current.Record.Score = amount
 
 	}
-	return current.record.score
+	return current.Record.Score
 
 }
 
@@ -144,7 +144,7 @@ func (n *Node) get(key string) *Record {
 		//go down one node
 		if found {
 
-			//fmt.Printf("Following node %c pos %d\n", next.char, next.pos)
+			//fmt.Printf("Following node %c pos %d\n", next.Char, next.pos)
 			current = next
 
 		} else { //this is a dead end! yield 
@@ -155,7 +155,7 @@ func (n *Node) get(key string) *Record {
 	}
 
 	//if we're here, it means we have a node for this key. if it has a record - we fond it. if not -we return nil
-	return current.record
+	return current.Record
 }
 
 type RecordList struct {
@@ -177,11 +177,11 @@ func (n *Node) prefixSearch(prefix string) ([]*Record, int) {
 	current := n
 	for pos := 0; pos < len(prefix); pos++ {
 
-//		fmt.Printf("Level %d node %c, len %d\n", pos, current.char, len(current.children))
+//		fmt.Printf("Level %d node %c, len %d\n", pos, current.Char, len(current.Children))
 		next, found := current._findChild(prefix[pos])
 		if found {
 
-			//fmt.Printf("Following node %c pos %d\n", next.char, next.pos)
+			//fmt.Printf("Following node %c pos %d\n", next.Char, next.pos)
 			current = next
 
 		} else {
@@ -203,11 +203,11 @@ func (n *Node) prefixSearch(prefix string) ([]*Record, int) {
 		back := stack.Remove(stack.Back())
 		node, _ := back.(*Node)
 
-		if node.record != nil {
+		if node.Record != nil {
 
-			if node.record.score > lower || lower <= 0 {
+			if node.Record.Score > lower || lower <= 0 {
 
-				item := &Item{value: node.record}
+				item := &Item{value: node.Record}
 				heap.Push(&pq, item)
 
 				if pq.Len() > num {
@@ -219,9 +219,9 @@ func (n *Node) prefixSearch(prefix string) ([]*Record, int) {
 			max++
 		}
 
-		if len(node.children) > 0 {
-			for i := 0; i < len(node.children); i++ {
-				stack.PushFront(node.children[i])
+		if len(node.Children) > 0 {
+			for i := 0; i < len(node.Children); i++ {
+				stack.PushFront(node.Children[i])
 			}
 		}
 
