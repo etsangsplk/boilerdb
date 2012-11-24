@@ -177,7 +177,6 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 			break
 
 		} else {
-
 			session.InChan <- cmd
 		}
 	}

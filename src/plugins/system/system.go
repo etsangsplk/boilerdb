@@ -33,6 +33,27 @@ func (p *SystemPlugin)CreateObject() *db.Entry {
 	return nil
 }
 
+func HandleMONITOR(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
+
+	ch := make(chan *db.Command)
+
+	sink := &db.CommandSink {
+		ch,
+		db.CMD_READER | db.CMD_WRITER,
+	}
+	db.DB.AddSink(sink)
+
+	go func() {
+		for session.IsRunning {
+
+			cmd := <- ch
+
+			session.OutChan <-  db.NewResult(fmt.Sprintf("COMMAND: %s", cmd.Command))
+
+		}
+	}()
+	return db.NewResult(db.NewStatus("OK"))
+}
 
 // perform BGSAVE - save the DB returning immediately
 func HandleBGSAVE(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
@@ -112,6 +133,8 @@ func (p *SystemPlugin)GetCommands() []db.CommandDescriptor {
 		db.CommandDescriptor{"INFO", 0, HandleINFO, p, 0, db.CMD_READER},
 		db.CommandDescriptor{"SAVE", 0, HandleSAVE, p, 0, db.CMD_WRITER},
 		db.CommandDescriptor{"BGSAVE", 0, HandleBGSAVE, p, 0, db.CMD_READER},
+		db.CommandDescriptor{"MONITOR", 0, HandleMONITOR, p, 0, db.CMD_READER},
+
 
 	}
 }
