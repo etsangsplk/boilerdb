@@ -13,6 +13,7 @@ import (
 //	"runtime"
 	"log"
 	"fmt"
+	"time"
 )
 
 type SystemPlugin struct {}
@@ -41,14 +42,14 @@ func HandleMONITOR(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Re
 		ch,
 		db.CMD_READER | db.CMD_WRITER,
 	}
-	db.DB.AddSink(sink)
+	db.DB.AddSink(sink, session.Id())
 
 	go func() {
 		for session.IsRunning {
 
 			cmd := <- ch
-
-			session.OutChan <-  db.NewResult(fmt.Sprintf("COMMAND: %s", cmd.Command))
+			now := time.Now()
+			session.OutChan <- db.NewResult(fmt.Sprintf("[%d.%d %s] %s", now.Unix(), now.Nanosecond(), session.Addr, cmd.ToString()))
 
 		}
 	}()
@@ -130,10 +131,10 @@ func (p *SystemPlugin)GetCommands() []db.CommandDescriptor {
 
 
 	return []db.CommandDescriptor {
-		db.CommandDescriptor{"INFO", 0, HandleINFO, p, 0, db.CMD_READER},
+		db.CommandDescriptor{"INFO", 0, HandleINFO, p, 0, db.CMD_SYSTEM},
 		db.CommandDescriptor{"SAVE", 0, HandleSAVE, p, 0, db.CMD_WRITER},
 		db.CommandDescriptor{"BGSAVE", 0, HandleBGSAVE, p, 0, db.CMD_READER},
-		db.CommandDescriptor{"MONITOR", 0, HandleMONITOR, p, 0, db.CMD_READER},
+		db.CommandDescriptor{"MONITOR", 0, HandleMONITOR, p, 0, db.CMD_SYSTEM},
 
 
 	}

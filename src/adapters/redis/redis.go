@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"runtime/debug"
 	"strconv"
+//	"strings"
 )
 
 type RedisAdapter struct {
@@ -91,6 +92,13 @@ func (r *RedisAdapter) SerializeResponse(res *db.Result, writer io.Writer) strin
 			break
 		}
 
+
+		c, ok := __value.Interface().(*db.Command)
+		if ok {
+			writer.Write([]byte(fmt.Sprintf("+%s\r\n", c.ToString())))
+			break
+		}
+
 		e, ok := __value.Interface().(*db.Error)
 		if ok {
 			writer.Write([]byte(fmt.Sprintf("-ERR %d: %s\r\n", e.Code, e.ToString())))
@@ -127,16 +135,23 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 			}()
 
 			*err = e.(error)
+//
+//			if *err != io.EOF {
+//
+//				r.SerializeResponse(db.NewResult(db.NewError(db.E_UNKNOWN_ERROR)), writer)
+//				writer.Flush()
+//			}
 
-			r.SerializeResponse(db.NewResult(db.NewError(db.E_UNKNOWN_ERROR)), writer)
-			writer.Flush()
 			c.Close()
 			if session.IsRunning{
 				session.Stop()
 			}
+			if *err != io.EOF {
+				log.Printf("Error processing command: %s\n", e)
+				debug.PrintStack()
 
-			log.Printf("Error processing command: %s\n", e)
-			debug.PrintStack()
+			}
+
 
 		}
 	}(&err, writer)
@@ -288,7 +303,7 @@ func readToCRLF(r *bufio.Reader) []byte {
 	//	var buf []byte
 	buf, e := r.ReadBytes(cr_byte)
 	if e != nil {
-		panic(fmt.Errorf("readToCRLF - ReadBytes", e))
+		panic(e)
 	}
 
 	var b byte

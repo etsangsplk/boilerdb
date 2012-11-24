@@ -9,6 +9,8 @@ package db
 
 import (
 	"strings"
+	"fmt"
+	"bytes"
 )
 
 //the command struct
@@ -28,6 +30,22 @@ func (cmd *Command) HasArg(s string) bool {
 	}
 
 	return false
+
+}
+
+func (cmd *Command) ToString() string {
+
+	keyStr := ""
+	argStr := ""
+
+	if cmd.Key != "" {
+		keyStr = fmt.Sprintf(" \"%s\"", cmd.Key)
+	}
+	if len(cmd.Args) > 0 {
+		argStr = fmt.Sprintf(" \"%s\"", bytes.Join(cmd.Args, []byte("\" \"")))
+	}
+
+	return fmt.Sprintf("%s%s%s", cmd.Command, keyStr, argStr)
 
 }
 

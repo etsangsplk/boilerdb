@@ -15,12 +15,13 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"os"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
+	"runtime/debug"
+//	"runtime"
 
 //	"bufio"
 
@@ -66,6 +67,7 @@ type HandlerFunc func(*Command, *Entry, *Session) *Result
 const (
 	CMD_WRITER = 1
 	CMD_READER = 2
+	CMD_SYSTEM = 4
 )
 
 //Wrapper of a function and the command name, used to register plugins and handlers
@@ -90,13 +92,6 @@ type IPlugin interface {
 	LoadObject([]byte, uint32) *Entry
 }
 
-type Session struct {
-	InChan    chan *Command
-	OutChan   chan *Result
-	db        *DataBase
-	Addr      net.Addr
-	IsRunning bool
-}
 
 type CommandSink struct {
 	Channel chan *Command
@@ -121,7 +116,8 @@ type DataBase struct {
 
 	slaves []replication.Slave
 
-	commandSinks []*CommandSink
+	sinkChan chan *Command
+	commandSinks map[string]*CommandSink
 
 	Stats struct {
 		//number of current sessions
@@ -152,8 +148,10 @@ func InitGlobalDataBase() *DataBase {
 		types:            make(map[uint32]*IPlugin),
 		currentSaveId:    0,
 		BGsaveInProgress: false,
-		commandSinks: make([]*CommandSink, 0),
+		commandSinks: make(map[string]*CommandSink),
+		sinkChan: make(chan *Command, config.IN_CHAN_BUFSIZE),
 	}
+	go DB.multiplexCommandsToSinks()
 	return DB
 }
 
@@ -169,48 +167,22 @@ func (db *DataBase) UNLockdown() {
 	db.saveLock.RLock()
 }
 
-//create a new session
-
-func (db *DataBase) NewSession(addr net.Addr) *Session {
-
-	db.Stats.ActiveSessions++
-	db.Stats.TotalSessions++
-
-	ret := &Session{
-		InChan:    make(chan *Command, config.IN_CHAN_BUFSIZE),
-		OutChan:   make(chan *Result, config.OUT_CHAN_BUFSIZE),
-		db:        db,
-		Addr:      addr,
-		IsRunning: true,
-	}
-
-	return ret
-
-}
-
-func (s *Session) Run() {
-
-	for s.IsRunning {
-		cmd := <- s.InChan
-		ret, _ := s.db.HandleCommand(cmd, s)
-		s.OutChan <- ret
-
-	}
-	log.Printf("Stopped Session %s....\n", s.Addr)
-}
-
-//stop a session on end
-func (s *Session) Stop() {
-	log.Printf("Stopping Session %s....\n", s.Addr)
-	s.IsRunning = false
-	s.db.Stats.ActiveSessions--
-}
 
 //add a sink to the database
-func (db *DataBase) AddSink(ch *CommandSink) {
+func (db *DataBase) AddSink(ch *CommandSink, id string) {
 
-	db.commandSinks = append(db.commandSinks, ch)
+	db.dictLock.Lock()
+	db.commandSinks[id] = ch
+	db.dictLock.Unlock()
+}
 
+func (db *DataBase) RemoveSink(id string) {
+
+	db.dictLock.Lock()
+	if db.commandSinks[id] != nil {
+		delete(db.commandSinks, id)
+	}
+	db.dictLock.Unlock()
 }
 
 func (db *DataBase) registerCommand(cd CommandDescriptor) {
@@ -240,7 +212,7 @@ func (db *DataBase) LockKey(key string, mode int) {
 
 	db.dictLock.Unlock()
 
-	if mode == CMD_READER {
+	if mode != CMD_WRITER {
 		keyLock.RLock()
 	} else {
 		keyLock.Lock()
@@ -266,7 +238,7 @@ func (db *DataBase) UnlockKey(key string, mode int) {
 	}
 	db.dictLock.Unlock()
 
-	if mode == CMD_READER {
+	if mode != CMD_WRITER {
 		keyLock.RUnlock()
 	} else {
 		keyLock.Unlock()
@@ -306,7 +278,7 @@ func (db *DataBase) HandleCommand(cmd *Command, session *Session) (*Result, erro
 	db.Stats.CommandsProcessed++
 	//lock the save mutex for reading so we won't access it while saving
 	db.saveLock.RLock()
-	defer func() { db.saveLock.RUnlock() }()
+	defer db.saveLock.RUnlock()
 	//make all commands uppercase
 	cmd.Command = strings.ToUpper(cmd.Command)
 
@@ -377,21 +349,36 @@ func (db *DataBase) HandleCommand(cmd *Command, session *Session) (*Result, erro
 		}
 		ret = commandDesc.Handler(cmd, entry, session)
 
-		//push the command to its sinks
-
 	} else {
 		ret = commandDesc.Handler(cmd, nil, session)
 	}
 
+
 	//duplicate the command to all the db's sinks
 	if len(db.commandSinks) > 0 {
+		db.sinkChan <- cmd
+	}
+
+	return ret, nil
+}
+
+func (db *DataBase) multiplexCommandsToSinks() {
+
+	defer func() {
+		e := recover()
+		if e != nil {
+			log.Printf("Error multiplexing to channels: %s", e)
+			debug.PrintStack()
+		}
+	}()
+	for {
+		cmd := <- db.sinkChan
 		for i := range(db.commandSinks) {
-			if (db.commandSinks[i].CommandType & commandDesc.CommandType) != 0 {
-				db.commandSinks[i].Channel <- cmd
-			}
+			//if (db.commandSinks[i].CommandType & commandDesc.CommandType) != 0 {
+			db.commandSinks[i].Channel <- cmd
+			//}
 		}
 	}
-	return ret, nil
 }
 
 //serialize a single entry
