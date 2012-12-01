@@ -11,4 +11,5 @@ var (
 	WORKING_DIRECTORY     = "/tmp"
 	IN_CHAN_BUFSIZE   int = 10
 	OUT_CHAN_BUFSIZE  int = 5
+	SINK_CHANNEL_SIZE = 100
 )

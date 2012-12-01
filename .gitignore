@@ -5,3 +5,4 @@ pkg
 /bin/main
 /boiler.sublime-project
 /boiler.sublime-workspace
+*.o

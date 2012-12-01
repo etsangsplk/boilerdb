@@ -12,6 +12,7 @@ import (
 	"runtime/debug"
 	"net"
 	"config"
+	"sync"
 )
 type Session struct {
 	InChan    chan *Command
@@ -19,6 +20,7 @@ type Session struct {
 	db        *DataBase
 	Addr      net.Addr
 	IsRunning bool
+	lock sync.Mutex
 }
 
 func (s *Session) Id() string {
@@ -54,20 +56,33 @@ func (s *Session) Run() {
 	}()
 	for s.IsRunning {
 		cmd := <- s.InChan
-		ret, _ := s.db.HandleCommand(cmd, s)
-		s.OutChan <- ret
+
+		if cmd != nil {
+			ret, _ := s.db.HandleCommand(cmd, s)
+
+			if s.OutChan != nil {
+				s.OutChan <- ret
+			}
+		}
 
 	}
+
 	log.Printf("Stopped Session %s....\n", s.Addr)
 }
 
 //stop a session on end
 func (s *Session) Stop() {
+
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
 	if s.IsRunning {
 		log.Printf("Stopping Session %s....\n", s.Addr)
 		s.IsRunning = false
 		s.db.RemoveSink(s.Id())
 		s.db.Stats.ActiveSessions--
+		//close(s.InChan)
+		//close(s.OutChan )
 	}
 }
 

@@ -135,18 +135,11 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 			}()
 
 			*err = e.(error)
-//
-//			if *err != io.EOF {
-//
-//				r.SerializeResponse(db.NewResult(db.NewError(db.E_UNKNOWN_ERROR)), writer)
-//				writer.Flush()
-//			}
-
+			session.Stop()
 			c.Close()
-			if session.IsRunning{
-				session.Stop()
-			}
-			if *err != io.EOF {
+
+
+			if *err !=  io.EOF && *err != io.ErrClosedPipe {
 				log.Printf("Error processing command: %s\n", e)
 				debug.PrintStack()
 
@@ -170,9 +163,8 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 			err = writer.Flush()
 			if err != nil {
 
-				if session.IsRunning {
-					session.Stop()
-				}
+				session.Stop()
+
 				break
 
 			}
@@ -197,9 +189,8 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 	}
 
 	//stop the session
-	if session.IsRunning{
-		session.Stop()
-	}
+	session.Stop()
+
 	c.Close()
 	return err
 }
@@ -288,6 +279,7 @@ func assertNotError(e error, info string) {
 // panics on errors (with redis.Error)
 
 const (
+
 	cr_byte    byte = byte('\r')
 	lf_byte         = byte('\n')
 	space_byte      = byte(' ')

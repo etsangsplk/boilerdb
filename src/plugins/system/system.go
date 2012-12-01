@@ -14,6 +14,7 @@ import (
 	"log"
 	"fmt"
 	"time"
+	"strconv"
 )
 
 type SystemPlugin struct {}
@@ -36,22 +37,37 @@ func (p *SystemPlugin)CreateObject() *db.Entry {
 
 func HandleMONITOR(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 
-	ch := make(chan *db.Command)
 
-	sink := &db.CommandSink {
-		ch,
-		db.CMD_READER | db.CMD_WRITER,
-	}
-	db.DB.AddSink(sink, session.Id())
+	sink := db.DB.AddSink(
+				db.CMD_READER | db.CMD_WRITER | db.CMD_SYSTEM,
+				session.Id())
 
 	go func() {
+
+		defer func(){
+			e := recover()
+			if e != nil {
+				log.Printf("Could not send command to session outchan: %s", e)
+				sink.Close()
+			}
+
+		}()
+
 		for session.IsRunning {
 
-			cmd := <- ch
-			now := time.Now()
-			session.OutChan <- db.NewResult(fmt.Sprintf("[%d.%d %s] %s", now.Unix(), now.Nanosecond(), session.Addr, cmd.ToString()))
+			cmd := <- sink.Channel
+
+			if cmd != nil {
+
+				now := time.Now()
+
+				if session.OutChan != nil {
+					session.OutChan <- db.NewResult(fmt.Sprintf("[%d.%d %s] %s", now.Unix(), now.Nanosecond(), session.Addr, cmd.ToString()))
+				}
+			}
 
 		}
+		//sink.Close()
 	}()
 	return db.NewResult(db.NewStatus("OK"))
 }
@@ -62,7 +78,7 @@ func HandleBGSAVE(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Res
 
 
 	//don't let another BGSAVE run
-	if db.DB.BGsaveInProgress {
+	if db.DB.BGsaveInProgress.IsSet() {
 		return db.NewResult(db.NewError(db.E_BGSAVE_IN_PROGRESS))
 	}
 
@@ -89,7 +105,30 @@ func HandleSAVE(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 		return db.NewResult(db.NewStatus("OK"))
 	}
 
+	log.Printf("Error saving db: %s", err)
+
+
 	return db.NewResult(db.NewError(db.E_UNKNOWN_ERROR))
+}
+
+//perform blocking save
+func HandleEXPIRE(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
+
+
+	secs, err := strconv.Atoi(string(cmd.Args[0]))
+
+	//make sure we have a good number of seconds
+	if err != nil || secs <= 0 {
+		return db.NewResult(db.NewError(db.E_INVALID_PARAMS))
+
+	}
+
+
+	when := time.Now().Add(time.Duration(secs) * time.Second)
+
+	_ = db.DB.SetExpire(cmd.Key, entry, when)
+
+	return db.NewResult(db.NewStatus("OK"))
 }
 
 func HandleINFO(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
@@ -133,6 +172,7 @@ func (p *SystemPlugin)GetCommands() []db.CommandDescriptor {
 	return []db.CommandDescriptor {
 		db.CommandDescriptor{"INFO", 0, HandleINFO, p, 0, db.CMD_SYSTEM},
 		db.CommandDescriptor{"SAVE", 0, HandleSAVE, p, 0, db.CMD_WRITER},
+		db.CommandDescriptor{"EXPIRE", 1, HandleEXPIRE, p, 0, db.CMD_WRITER},
 		db.CommandDescriptor{"BGSAVE", 0, HandleBGSAVE, p, 0, db.CMD_READER},
 		db.CommandDescriptor{"MONITOR", 0, HandleMONITOR, p, 0, db.CMD_SYSTEM},
 

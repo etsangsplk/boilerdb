@@ -18,28 +18,41 @@ import (
 	simple "plugins/simple"
 	system "plugins/system"
 	"runtime"
+//	"time"
+//	"os"
+//	"runtime/pprof"
+//	"bufio"
 )
 
 ///////////////////////////////////////////////////
 
 func main() {
 
-	runtime.GOMAXPROCS(runtime.NumCPU() * 2)
+
+
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
 	database := db.InitGlobalDataBase()
+
+	///Register all the plugins
 	ht := new(hash_table.HashTablePlugin)
 	smp := new(simple.SimplePlugin)
 	ptree := new(ptree.PrefixTreePlugin)
 	sys := new(system.SystemPlugin)
+
+
 	database.RegisterPlugins(ht, smp, ptree, sys)
 
-	_ = database.LoadDump()
+
+	//
+
 
 	if true {
 		adap := redis_adapter.RedisAdapter{}
 
 		adap.Init(database)
 		adap.Name()
-		addr, _ := net.ResolveTCPAddr("tcp", "127.0.0.1:2000")
+		addr, _ := net.ResolveTCPAddr("tcp", "0.0.0.0:2000")
 		err := adap.Listen(addr)
 
 		if err != nil {
@@ -49,6 +62,9 @@ func main() {
 		}
 
 		fmt.Printf("Go..\n")
+
+		go db.DB.LoadDump()
+
 		adap.Start()
 
 	}

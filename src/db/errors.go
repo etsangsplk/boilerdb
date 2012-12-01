@@ -14,6 +14,7 @@ const (
 	E_INVALID_PARAMS int = 4
 	E_NOT_ENOUGH_PARAMS int = 5
 	E_BGSAVE_IN_PROGRESS int = 6
+	E_LOAD_IN_PROGRESS int = 7
 )
 
 
@@ -24,6 +25,7 @@ var errorCodes map[int]string = map[int]string {
 	E_INVALID_PARAMS: "Invalid parameters for call",
 	E_NOT_ENOUGH_PARAMS: "Not enough params for command",
 	E_BGSAVE_IN_PROGRESS: "BGSAVE in progress",
+	E_LOAD_IN_PROGRESS: "LOAD in progress...",
 
 }
 
