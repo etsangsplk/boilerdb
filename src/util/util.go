@@ -42,9 +42,7 @@ func (af *AtomicFlag)GetSet(value bool) bool {
 		oldVal = 1
 	}
 
-	fmt.Println(af.value)
 	swapped := atomic.CompareAndSwapInt32(&(af.value), oldVal, newVal)
-	fmt.Println(value, newVal, swapped)
 
 	//if we set true and we swapped - return false
 	// if we set true and not swapped -return true

@@ -160,11 +160,12 @@ type DataBase struct {
 	currentSaveId    uint8
 	BGsaveInProgress util.AtomicFlag
 	LastSaveTime     time.Time
+	changesSinceLastSave int64
 	//tmp keys for bgsaving
 	bgsaveTempKeys map[string]*SerializedEntry
 
 	DataLoadInProgress util.AtomicFlag
-
+	Running util.AtomicFlag
 
 	//expiring keys
 	expiredKeys map [string]time.Time
@@ -193,9 +194,10 @@ type KeyLock struct {
 }
 
 
-
+// create the global database and initialize it
 func InitGlobalDataBase() *DataBase {
 	DB = &DataBase{
+
 		commands:         make(map[string]*CommandDescriptor),
 		dictionary:       make(map[string]*Entry),
 		lockedKeys:       make(map[string]*KeyLock),
@@ -206,24 +208,69 @@ func InitGlobalDataBase() *DataBase {
 		commandSinks: make(map[string]*CommandSink),
 		sinkChan: make(chan *Command, 10),
 		expiredKeys: make(map[string]time.Time),
+		LastSaveTime: time.Now(),
 
 	}
+	DB.Running.Set(true)
+	//start the goroutines for dispatching to sinks and for dump loading
+	log.Printf("Starting side goroutines for global database")
 	go DB.multiplexCommandsToSinks()
+	go DB.LoadDump()
+
+	//start the side goroutine for auto-saving the databse
+	if config.BGSAVE_SECONDS > 0 {
+		go DB.autoPersist()
+	}
 	return DB
 }
 
+func (db *DataBase)ShutDown() {
+	log.Printf("Shutting down Database...")
+	db.Running.Set(false)
+}
+
+// return the number of entries in the database
 func (db *DataBase) Size() int {
 	return len(db.dictionary)
 }
+
+// put the database in full lockdown mode for blocking save.
+// This waits for all currently executing queries to finish, then locks
 func (db *DataBase) Lockdown() {
 	db.saveLock.RUnlock()
 	db.saveLock.Lock()
 }
+
+// release the full lockdown lock of the databse
 func (db *DataBase) UNLockdown() {
 	db.saveLock.Unlock()
 	db.saveLock.RLock()
 }
 
+// this goroutine checks for persisting the database
+func (db *DataBase)autoPersist() {
+	log.Printf("Starting Auto Persist loop...")
+	for db.Running.IsSet() {
+		now := time.Now()
+		log.Printf("Checking persistence... %d changes since %s", DB.changesSinceLastSave, now.Sub(DB.LastSaveTime ))
+		//if we need to save the DB - let's do it!
+		if DB.LastSaveTime.Add( time.Second * time.Duration(config.BGSAVE_SECONDS)).Before(now) {
+			if DB.changesSinceLastSave > 0 {
+				log.Printf("AutoSaving Database, %d changes in %s", DB.changesSinceLastSave, now.Sub(DB.LastSaveTime) )
+
+				go DB.Dump()
+			} else {
+				log.Print("No need to save the db. no changes...")
+			}
+		}
+
+		log.Printf("Sleeping for %s", time.Second * time.Duration(config.BGSAVE_SECONDS ))
+		// sleep until next bgsave check
+		 time.Sleep(time.Second * time.Duration(config.BGSAVE_SECONDS ))
+
+
+	}
+}
 
 func (db *DataBase) SetExpire(key string, entry *Entry, when time.Time) bool {
 
@@ -264,6 +311,9 @@ func (db *DataBase) AddSink(flags int, id string) *CommandSink  {
 	return sink
 }
 
+// remove a sink from the database
+// does nothing if the sink id is not in the db's dictionary.
+// this gets called when every session ends. TODO: optimize this - a session should be marked as a sink
 func (db *DataBase) RemoveSink(id string) {
 
 	db.dictLock.Lock()
@@ -406,6 +456,9 @@ func (db *DataBase) HandleCommand(cmd *Command, session *Session) (*Result, erro
 
 	}
 
+	if commandDesc.CommandType == CMD_WRITER {
+		db.changesSinceLastSave++
+	}
 
 	var ret *Result = nil
 	if cmd.Key != "" {
@@ -550,6 +603,8 @@ func (db *DataBase) Dump() (int64, error) {
 	db.currentSaveId++
 	db.dictLock.Unlock()
 
+	startTime := time.Now()
+
 	//make sure we release the save flag
 	defer func() { db.BGsaveInProgress.Set(false) }()
 
@@ -600,6 +655,9 @@ func (db *DataBase) Dump() (int64, error) {
 	//TODO: iterate the temp dictionary for deleted keys
 
 	fp.Close()
+	db.changesSinceLastSave = 0
+	db.LastSaveTime = time.Now()
+	log.Printf("Finished BGSAVE in %s", time.Now().Sub(startTime))
 	return 0, nil
 }
 

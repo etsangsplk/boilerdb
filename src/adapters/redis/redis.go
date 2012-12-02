@@ -118,8 +118,10 @@ func (r *RedisAdapter) SerializeResponse(res *db.Result, writer io.Writer) strin
 func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 	var err error = nil
 
-	reader := bufio.NewReaderSize(c, 8192)
-	writer := bufio.NewWriter(c)
+	fp, _ := c.File()
+	_ = fp
+	reader := bufio.NewReaderSize(fp, 8192)
+	writer := bufio.NewWriter(fp)
 
 	session := r.db.NewSession(c.RemoteAddr())
 

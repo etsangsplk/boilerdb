@@ -63,8 +63,6 @@ func main() {
 
 		fmt.Printf("Go..\n")
 
-		go db.DB.LoadDump()
-
 		adap.Start()
 
 	}
