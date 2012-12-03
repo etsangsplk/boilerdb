@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"runtime/debug"
 	"strconv"
+
 //	"strings"
 )
 
@@ -92,7 +93,6 @@ func (r *RedisAdapter) SerializeResponse(res *db.Result, writer io.Writer) strin
 			break
 		}
 
-
 		c, ok := __value.Interface().(*db.Command)
 		if ok {
 			writer.Write([]byte(fmt.Sprintf("+%s\r\n", c.ToString())))
@@ -140,18 +140,14 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 			session.Stop()
 			c.Close()
 
-
-			if *err !=  io.EOF && *err != io.ErrClosedPipe {
+			if *err != io.EOF && *err != io.ErrClosedPipe {
 				log.Printf("Error processing command: %s\n", e)
 				debug.PrintStack()
 
 			}
 
-
 		}
 	}(&err, writer)
-
-
 
 	go session.Run()
 
@@ -281,7 +277,6 @@ func assertNotError(e error, info string) {
 // panics on errors (with redis.Error)
 
 const (
-
 	cr_byte    byte = byte('\r')
 	lf_byte         = byte('\n')
 	space_byte      = byte(' ')

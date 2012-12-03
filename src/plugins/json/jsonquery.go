@@ -7,7 +7,8 @@ import (
 )
 
 type JsonQuery struct {
-	Blob map[string]interface{}
+	Blob interface {}
+
 }
 
 // Create a new JsonQuery obj from a json-decoded interface{}
@@ -17,54 +18,6 @@ func NewQuery(data interface{}) *JsonQuery {
 	return j
 }
 
-// Extract a Bool from some json
-func (j *JsonQuery) Bool(s ...string) (bool, error) {
-	val, err := rquery(j.Blob, s...)
-	if err != nil {
-		return false, err
-	}
-	switch val.(type) {
-	case bool:
-		return val.(bool), nil
-	}
-	return false, fmt.Errorf("Expected boolean value for Bool, got \"%v\"\n", val)
-}
-
-// Extract a float from some json
-func (j *JsonQuery) Float(s ...string) (float64, error) {
-	val, err := rquery(j.Blob, s...)
-	if err != nil {
-		return 0.0, err
-	}
-	switch val.(type) {
-	case float64:
-		return val.(float64), nil
-	case string:
-		fval, err := strconv.ParseFloat(val.(string), 64)
-		if err == nil {
-			return fval, nil
-		}
-	}
-	return 0.0, fmt.Errorf("Expected numeric value for Float, got \"%v\"\n", val)
-}
-
-// Extract an int from some json
-func (j *JsonQuery) Int(s ...string) (int, error) {
-	val, err := rquery(j.Blob, s...)
-	if err != nil {
-		return 0, err
-	}
-	switch val.(type) {
-	case float64:
-		return int(val.(float64)), nil
-	case string:
-		ival, err := strconv.ParseFloat(val.(string), 64)
-		if err == nil {
-			return int(ival), nil
-		}
-	}
-	return 0, fmt.Errorf("Expected numeric value for Int, got \"%v\"\n", val)
-}
 
 // Extract a string from some json
 func (j *JsonQuery) String(s ...string) (string, error) {
@@ -96,19 +49,52 @@ func (j *JsonQuery) Object(s ...string) (map[string]interface{}, error) {
 	return map[string]interface{}{}, fmt.Errorf("Expected json object for Object, get \"%v\"\n", val)
 }
 
-// Extract an array from some json
-func (j *JsonQuery) Array(s ...string) ([]interface{}, error) {
-	val, err := rquery(j.Blob, s...)
-	if err != nil {
-		return []interface{}{}, err
-	}
-	switch val.(type) {
-	case []interface{}:
-		return val.([]interface{}), nil
-	}
-	return []interface{}{}, fmt.Errorf("Expected json array for Array, get \"%v\"\n", val)
-}
 
+// Recursively query a decoded json blob and set its new value
+func (jq *JsonQuery)Set(newVal interface {}, s ...string) error {
+	var (
+		val interface{}
+		err error
+		current interface {} = jq.Blob
+		prevQ string
+	)
+	val = jq.Blob
+
+
+
+	for _, q := range s {
+		current = val
+		val, err = query(val, q)
+		if err != nil {
+			return  err
+		}
+		prevQ	= q
+
+	}
+
+
+	switch current.(type) {
+		case nil:
+			return fmt.Errorf("Nil value found at %s\n", s[len(s)-1])
+		case []interface{}:
+			arr := current.([]interface {})
+			index, err := strconv.Atoi(prevQ)
+			if err != nil{
+				return fmt.Errorf("Could not access %s in array", prevQ)
+			}
+			if index > len(arr) {
+				return fmt.Errorf("Index out of range")
+			}
+			arr[index] = newVal
+		case map[string]interface{}:
+			dict, _ := current.(map[string]interface{})
+			dict[prevQ] = newVal
+		default:
+			return fmt.Errorf("Invalid type for object")
+
+	}
+	return nil
+}
 // Recursively query a decoded json blob
 func rquery(blob interface{}, s ...string) (interface{}, error) {
 	var (
@@ -157,7 +143,8 @@ func query(blob interface{}, query string) (interface{}, error) {
 
 	val, ok := blob.(map[string]interface{})[query]
 	if !ok {
-		return nil, fmt.Errorf("Object %v does not contain field %s\n", blob, query)
+		return nil, nil
+		//return nil, fmt.Errorf("Object %v does not contain field %s\n", blob, query)
 	}
 	return val, nil
 }
