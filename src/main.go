@@ -17,6 +17,7 @@ import (
 	ptree "plugins/prefix_tree"
 	simple "plugins/simple"
 	system "plugins/system"
+	json "plugins/json"
 	"runtime"
 //	"time"
 //	"os"
@@ -39,9 +40,10 @@ func main() {
 	smp := new(simple.SimplePlugin)
 	ptree := new(ptree.PrefixTreePlugin)
 	sys := new(system.SystemPlugin)
+	js := new(json.JSONPlugin)
 
 
-	database.RegisterPlugins(ht, smp, ptree, sys)
+	database.RegisterPlugins(ht, smp, ptree, sys, js)
 
 
 	//
