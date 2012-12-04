@@ -39,19 +39,17 @@ func (r *RedisAdapter) Listen(addr net.Addr) error {
 	return nil
 }
 
-func (r *RedisAdapter) SerializeResponse(res *db.Result, writer io.Writer) error {
+func (r *RedisAdapter) SerializeResponse(res interface{}, writer io.Writer) error {
 
-	//for nil values we write nil yo...
-	if res == nil {
 
+
+	switch res.(type) {
+
+	case nil:
 		writer.Write([]byte("$-1\r\n"))
-		return nil
-	}
-
-	switch res.Value.(type) {
 
 	case bool:
-		boolVal := res.Value.(bool)
+		boolVal := res.(bool)
 		intVal := 0
 		if boolVal {
 			intVal = 1
@@ -59,44 +57,44 @@ func (r *RedisAdapter) SerializeResponse(res *db.Result, writer io.Writer) error
 		writer.Write([]byte(fmt.Sprintf(":%d\r\n", intVal)))
 
 	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
-		writer.Write([]byte(fmt.Sprintf(":%d\r\n", res.Value)))
+		writer.Write([]byte(fmt.Sprintf(":%d\r\n", res)))
 	case  float32 , float64:
-		s := fmt.Sprintf("%f", res.Value)
+		s := fmt.Sprintf("%f", res)
 		writer.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(s), s)))
 	case string:
-		s := res.Value.(string)
+		s := res.(string)
 		writer.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(s), s)))
 
 	case []interface{}:
-		arr := res.Value.([]interface {})
+		arr := res.([]interface {})
 		l := len(arr)
 		writer.Write([]byte(fmt.Sprintf("*%d\r\n", l)))
 		//recursively serialize all entries in the list
 		for i := 0; i < l; i++ {
-			err := r.SerializeResponse(db.NewResult(arr[i]), writer )
+			err := r.SerializeResponse(arr[i], writer )
 			if err != nil {
 				log.Panic(err)
 			}
 		}
 
 	case *db.Status:
-		status := res.Value.(*db.Status)
+		status := res.(*db.Status)
 		writer.Write([]byte(fmt.Sprintf("+%s\r\n", status.Str)))
 
 	case *db.Command:
 
-		writer.Write([]byte(fmt.Sprintf("+%s\r\n", res.Value.(*db.Command).ToString())))
+		writer.Write([]byte(fmt.Sprintf("+%s\r\n", res.(*db.Command).ToString())))
 
 	case *db.Error:
-		e := res.Value.(*db.Error)
+		e := res.(*db.Error)
 		writer.Write([]byte(fmt.Sprintf("-ERR %d: %s\r\n", e.Code, e.ToString())))
 
 	case map[string]interface{}:
-		m := res.Value.(map[string]interface{})
+		m := res.(map[string]interface{})
 		writer.Write([]byte(fmt.Sprintf("*%d\r\n", len(m)*2)))
 		for k, _ := range m {
 			writer.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(k), k)))
-			err := r.SerializeResponse(db.NewResult(m[k]), writer )
+			err := r.SerializeResponse(m[k], writer )
 			if err != nil {
 				log.Panic(err)
 			}
@@ -104,7 +102,7 @@ func (r *RedisAdapter) SerializeResponse(res *db.Result, writer io.Writer) error
 
 	default:
 		writer.Write([]byte(fmt.Sprintf("-ERR Unknown type '%s'\r\n", )))
-		return fmt.Errorf("Unknown type '%s'. Could not serialize", reflect.TypeOf(res.Value))
+		return fmt.Errorf("Unknown type '%s'. Could not serialize", reflect.TypeOf(res))
 	}
 
 	return nil
@@ -152,7 +150,11 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 		for session.IsRunning {
 
 			msg := <-session.OutChan
-			r.SerializeResponse(msg, writer)
+			if msg != nil {
+				r.SerializeResponse(msg.Value, writer)
+			} else {
+				r.SerializeResponse(nil, writer)
+			}
 			err = writer.Flush()
 			if err != nil {
 
