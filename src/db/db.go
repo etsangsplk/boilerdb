@@ -10,18 +10,19 @@ package db
 import (
 	"bytes"
 	"config"
-//	"db/replication"
+	//	"db/replication"
 	gob "encoding/gob"
 	"fmt"
 	"io"
 	"log"
 	"os"
-	"reflect"
+//	"reflect"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
-	"runtime/debug"
 	"util"
+
 //	"runtime"
 
 //	"bufio"
@@ -29,11 +30,11 @@ import (
 )
 
 type Result struct {
-	reflect.Value
+	Value interface {}
 }
 
 func NewResult(i interface{}) *Result {
-	return &Result{reflect.ValueOf(i)}
+	return &Result{i}
 }
 
 const (
@@ -49,9 +50,9 @@ type DataStruct interface {
 
 //Dictionary Entry struct
 type Entry struct {
-	Value  DataStruct
-	Type   uint32
-	saveId uint8
+	Value   DataStruct
+	Type    uint32
+	saveId  uint8
 	expired bool
 }
 
@@ -100,13 +101,13 @@ type IPlugin interface {
 // e.g. a slave or active monitor
 ////////////////////////////////////////////////////////////
 type CommandSink struct {
-	Channel chan *Command
+	Channel     chan *Command
 	CommandType int
-	lock sync.Mutex
+	lock        sync.Mutex
 }
 
 // safely push a command on the channel without risk of blocking on a full sink or pushing to a nil sink
-func (s *CommandSink)PushCommand(cmd *Command) {
+func (s *CommandSink) PushCommand(cmd *Command) {
 
 	s.lock.Lock()
 	defer s.lock.Unlock()
@@ -119,19 +120,18 @@ func (s *CommandSink)PushCommand(cmd *Command) {
 		}
 	}()
 
-
 	to := time.After(1000 * time.Nanosecond)
 	select {
-		case s.Channel <- cmd:
-			break
-		case <- to:
-			log.Printf("Timeout writing to channel %p", s.Channel)
+	case s.Channel <- cmd:
+		break
+	case <-to:
+		log.Printf("Timeout writing to channel %p", s.Channel)
 	}
 
 }
 
 //safely close the sink's channel
-func (s *CommandSink)Close() {
+func (s *CommandSink) Close() {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	if s.Channel != nil {
@@ -140,15 +140,15 @@ func (s *CommandSink)Close() {
 
 }
 
-
-
-
 ////////////////////////////////////////////////////////////
 //
 // The core database itself
 //
 ////////////////////////////////////////////////////////////
+
+
 type DataBase struct {
+
 	commands   map[string]*CommandDescriptor
 	dictionary map[string]*Entry
 	lockedKeys map[string]*KeyLock
@@ -157,23 +157,22 @@ type DataBase struct {
 	types      map[uint32]*IPlugin
 
 	//save status
-	currentSaveId    uint8
-	BGsaveInProgress util.AtomicFlag
-	LastSaveTime     time.Time
+	currentSaveId        uint8
+	BGsaveInProgress     util.AtomicFlag
+	LastSaveTime         time.Time
 	changesSinceLastSave int64
 	//tmp keys for bgsaving
 	bgsaveTempKeys map[string]*SerializedEntry
 
 	DataLoadInProgress util.AtomicFlag
-	Running util.AtomicFlag
+	Running            util.AtomicFlag
 
 	//expiring keys
-	expiredKeys map [string]time.Time
-
+	expiredKeys map[string]time.Time
 
 	//slaves []replication.Slave
 
-	sinkChan chan *Command
+	sinkChan     chan *Command
 	commandSinks map[string]*CommandSink
 
 	Stats struct {
@@ -193,23 +192,21 @@ type KeyLock struct {
 	refCount int
 }
 
-
 // create the global database and initialize it
 func InitGlobalDataBase() *DataBase {
 	DB = &DataBase{
 
-		commands:         make(map[string]*CommandDescriptor),
-		dictionary:       make(map[string]*Entry),
-		lockedKeys:       make(map[string]*KeyLock),
-		dictLock:         sync.Mutex{},
-		saveLock:         sync.RWMutex{},
-		types:            make(map[uint32]*IPlugin),
-		currentSaveId:    0,
-		commandSinks: make(map[string]*CommandSink),
-		sinkChan: make(chan *Command, 10),
-		expiredKeys: make(map[string]time.Time),
-		LastSaveTime: time.Now(),
-
+		commands:      make(map[string]*CommandDescriptor),
+		dictionary:    make(map[string]*Entry),
+		lockedKeys:    make(map[string]*KeyLock),
+		dictLock:      sync.Mutex{},
+		saveLock:      sync.RWMutex{},
+		types:         make(map[uint32]*IPlugin),
+		currentSaveId: 0,
+		commandSinks:  make(map[string]*CommandSink),
+		sinkChan:      make(chan *Command, 10),
+		expiredKeys:   make(map[string]time.Time),
+		LastSaveTime:  time.Now(),
 	}
 	DB.Running.Set(true)
 	//start the goroutines for dispatching to sinks and for dump loading
@@ -224,7 +221,7 @@ func InitGlobalDataBase() *DataBase {
 	return DB
 }
 
-func (db *DataBase)ShutDown() {
+func (db *DataBase) ShutDown() {
 	log.Printf("Shutting down Database...")
 	db.Running.Set(false)
 }
@@ -248,15 +245,15 @@ func (db *DataBase) UNLockdown() {
 }
 
 // this goroutine checks for persisting the database
-func (db *DataBase)autoPersist() {
+func (db *DataBase) autoPersist() {
 	log.Printf("Starting Auto Persist loop...")
 	for db.Running.IsSet() {
 		now := time.Now()
-		log.Printf("Checking persistence... %d changes since %s", DB.changesSinceLastSave, now.Sub(DB.LastSaveTime ))
+		log.Printf("Checking persistence... %d changes since %s", DB.changesSinceLastSave, now.Sub(DB.LastSaveTime))
 		//if we need to save the DB - let's do it!
-		if DB.LastSaveTime.Add( time.Second * time.Duration(config.BGSAVE_SECONDS)).Before(now) {
+		if DB.LastSaveTime.Add(time.Second * time.Duration(config.BGSAVE_SECONDS)).Before(now) {
 			if DB.changesSinceLastSave > 0 {
-				log.Printf("AutoSaving Database, %d changes in %s", DB.changesSinceLastSave, now.Sub(DB.LastSaveTime) )
+				log.Printf("AutoSaving Database, %d changes in %s", DB.changesSinceLastSave, now.Sub(DB.LastSaveTime))
 
 				go DB.Dump()
 			} else {
@@ -264,16 +261,14 @@ func (db *DataBase)autoPersist() {
 			}
 		}
 
-		log.Printf("Sleeping for %s", time.Second * time.Duration(config.BGSAVE_SECONDS ))
+		log.Printf("Sleeping for %s", time.Second*time.Duration(config.BGSAVE_SECONDS))
 		// sleep until next bgsave check
-		 time.Sleep(time.Second * time.Duration(config.BGSAVE_SECONDS ))
-
+		time.Sleep(time.Second * time.Duration(config.BGSAVE_SECONDS))
 
 	}
 }
 
 func (db *DataBase) SetExpire(key string, entry *Entry, when time.Time) bool {
-
 
 	entry.expired = true
 	db.expiredKeys[key] = when
@@ -282,10 +277,9 @@ func (db *DataBase) SetExpire(key string, entry *Entry, when time.Time) bool {
 	return true
 }
 
-
 //get the mode of a command (writer /reader / system)
 //return the mode identifier or 0 if none is found
-func (db *DataBase) CommandType(cmd string ) int{
+func (db *DataBase) CommandType(cmd string) int {
 
 	commandDesc := db.commands[cmd]
 	if commandDesc != nil {
@@ -295,13 +289,12 @@ func (db *DataBase) CommandType(cmd string ) int{
 }
 
 //create and add a sink to the database, returning it to the caller
-func (db *DataBase) AddSink(flags int, id string) *CommandSink  {
+func (db *DataBase) AddSink(flags int, id string) *CommandSink {
 
-
-	sink := &CommandSink {
-			make(chan *Command, config.SINK_CHANNEL_SIZE),
-			flags,
-			sync.Mutex{},
+	sink := &CommandSink{
+		make(chan *Command, config.SINK_CHANNEL_SIZE),
+		flags,
+		sync.Mutex{},
 	}
 
 	db.dictLock.Lock()
@@ -320,14 +313,12 @@ func (db *DataBase) RemoveSink(id string) {
 
 	defer db.dictLock.Unlock()
 
-	sink :=db.commandSinks[id]
+	sink := db.commandSinks[id]
 	if sink != nil {
 		sink.Close()
 		delete(db.commandSinks, id)
 		log.Printf("Removed sink %s", id)
 	}
-
-
 
 }
 
@@ -421,7 +412,6 @@ func (db *DataBase) RegisterPlugins(plugins ...IPlugin) {
 
 }
 
-
 func (db *DataBase) HandleCommand(cmd *Command, session *Session) (*Result, error) {
 
 	db.Stats.CommandsProcessed++
@@ -432,7 +422,6 @@ func (db *DataBase) HandleCommand(cmd *Command, session *Session) (*Result, erro
 	if db.DataLoadInProgress.IsSet() {
 		return NewResult(&Error{E_LOAD_IN_PROGRESS}), fmt.Errorf("Could not run command - data load in progress")
 	}
-
 
 	//make all commands uppercase
 	cmd.Command = strings.ToUpper(cmd.Command)
@@ -479,12 +468,11 @@ func (db *DataBase) HandleCommand(cmd *Command, session *Session) (*Result, erro
 				log.Printf("Expiring key %s", cmd.Key)
 
 				delete(db.dictionary, cmd.Key)
-				delete(db.expiredKeys,cmd.Key)
-				entry =  nil
+				delete(db.expiredKeys, cmd.Key)
+				entry = nil
 			}
 
 		}
-
 
 		//if the entry does not exist - create it
 		if entry == nil {
@@ -523,15 +511,12 @@ func (db *DataBase) HandleCommand(cmd *Command, session *Session) (*Result, erro
 
 			}
 
-
-
 		}
 		ret = commandDesc.Handler(cmd, entry, session)
 
 	} else {
 		ret = commandDesc.Handler(cmd, nil, session)
 	}
-
 
 	//duplicate the command to all the db's sinks
 	if len(db.commandSinks) > 0 {
@@ -554,11 +539,11 @@ func (db *DataBase) multiplexCommandsToSinks() {
 	}()
 	for {
 
-		cmd := <- db.sinkChan
-		for i := range(db.commandSinks) {
+		cmd := <-db.sinkChan
+		for i := range db.commandSinks {
 
 			sink, ok := db.commandSinks[i]
-			if ok && (sink.CommandType &db.CommandType(cmd.Command)) != 0 {
+			if ok && (sink.CommandType&db.CommandType(cmd.Command)) != 0 {
 				sink.PushCommand(cmd)
 
 			}
@@ -588,7 +573,6 @@ func (db *DataBase) Dump() (int64, error) {
 		log.Printf("Data Load In Progress!")
 		return 0, fmt.Errorf("LOAD in progress")
 	}
-
 
 	currentlySaving := db.BGsaveInProgress.GetSet(true)
 	if currentlySaving {
@@ -672,7 +656,7 @@ func (db *DataBase) LoadDump() error {
 		return fmt.Errorf("Cannot load dump - already loading dump")
 	}
 
-	defer func() { db.DataLoadInProgress.Set(false)}()
+	defer func() { db.DataLoadInProgress.Set(false) }()
 
 	fp, err := os.Open(fmt.Sprintf("%s/%s", config.WORKING_DIRECTORY, "dump.bdb"))
 	if err != nil {

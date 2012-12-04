@@ -50,6 +50,7 @@ func HandleJSET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 		return db.NewResult(db.NewError(db.E_INVALID_PARAMS))
 	}
 
+
 	//set the root object
 	if string(cmd.Args[0]) == "." {
 		jo.Blob = data
@@ -71,6 +72,8 @@ func HandleJGET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 	if entry == nil {
 		return nil
 	}
+
+
 	jq := entry.Value.(*JsonQuery)
 	ret, err := json.Marshal(jq.Blob)
 

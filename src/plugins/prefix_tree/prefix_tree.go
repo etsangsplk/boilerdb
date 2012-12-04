@@ -88,17 +88,17 @@ func HandlePSEARCH(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Re
 			step = 2
 			num *= step
 		}
-		ret := make([]string, num)
+		ret := make([]interface{}, num)
 
 		//put the relevant values in place
 		n := 0
 		for i := 0; i < num; i+=step {
 			if res[n] != nil {
-				ret[i] = (res)[n].Key
+				ret[i] = res[n].Key
 			}
 			//redis doesn't support floats over protocol....
 			if withScores {
-				ret[i+1] = fmt.Sprintf("%f", (res)[n].Score)
+				ret[i+1] = res[n].Score
 			}
 			n++
 		}
