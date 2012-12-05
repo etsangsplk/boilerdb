@@ -1,17 +1,10 @@
-/**
- * Created with IntelliJ IDEA.
- * User: dvirsky
- * Date: 11/21/12
- * Time: 12:00 AM
- * To change this template use File | Settings | File Templates.
- */
 package system
 import (
 	gob "encoding/gob"
 	"db"
 
 //	"runtime"
-	"log"
+	"logging"
 	"fmt"
 	"time"
 	"strconv"
@@ -47,7 +40,7 @@ func HandleMONITOR(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Re
 		defer func(){
 			e := recover()
 			if e != nil {
-				log.Printf("Could not send command to session outchan: %s", e)
+				logging.Info("Could not send command to session outchan: %s", e)
 				sink.Close()
 			}
 
@@ -105,7 +98,7 @@ func HandleSAVE(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 		return db.NewResult(db.NewStatus("OK"))
 	}
 
-	log.Printf("Error saving db: %s", err)
+	logging.Info("Error saving db: %s", err)
 
 
 	return db.NewResult(db.NewError(db.E_UNKNOWN_ERROR))
@@ -160,7 +153,7 @@ keys: %d
 		db.DB.BGsaveInProgress,
 		db.DB.Size(),
 	)
-	log.Printf("Server stats: %s", ret)
+	logging.Info("Server stats: %s", ret)
 	return db.NewResult(ret)
 
 
@@ -184,3 +177,7 @@ func (p *SystemPlugin)GetCommands() []db.CommandDescriptor {
 func (p* SystemPlugin) GetTypes() []uint32 {
 	return []uint32{}
 }
+
+ func (p* SystemPlugin) String() string {
+	 return "STRING"
+ }

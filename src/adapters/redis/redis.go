@@ -1,4 +1,8 @@
+// The redis protocol adapter, currently the only adapter in town :)
+
 package redis
+
+
 
 import (
 	"bufio"
@@ -6,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"logging"
 	"log"
 	"net"
 	"reflect"
@@ -39,6 +44,18 @@ func (r *RedisAdapter) Listen(addr net.Addr) error {
 	return nil
 }
 
+// Take a response as an abstract interface, and serialize it to the redis protocol
+// allowed response types are:
+// 1. Integers of all types
+// 2. Strings
+// 3. booleans (converted to strings)
+// 4. db Status
+// 5. db Error
+// 6. db Command (serialized as string, for monitoring)
+// 7. nil
+// 8. []interface{} (serialized recursively)
+// 9. map[string]interface{} (serialized recuresively)
+// 10. float32/64 (serialized as string,)
 func (r *RedisAdapter) SerializeResponse(res interface{}, writer io.Writer) error {
 
 
@@ -73,7 +90,7 @@ func (r *RedisAdapter) SerializeResponse(res interface{}, writer io.Writer) erro
 		for i := 0; i < l; i++ {
 			err := r.SerializeResponse(arr[i], writer )
 			if err != nil {
-				log.Panic(err)
+				logging.Panic("Could not serialize response: %s", err)
 			}
 		}
 
@@ -89,6 +106,11 @@ func (r *RedisAdapter) SerializeResponse(res interface{}, writer io.Writer) erro
 		e := res.(*db.Error)
 		writer.Write([]byte(fmt.Sprintf("-ERR %d: %s\r\n", e.Code, e.ToString())))
 
+	case *db.PluginError:
+		e := res.(*db.PluginError)
+
+		writer.Write([]byte(fmt.Sprintf("-Error in plugin '%s': %s\r\n", e.PluginName, e.Message)))
+
 	case map[string]interface{}:
 		m := res.(map[string]interface{})
 		writer.Write([]byte(fmt.Sprintf("*%d\r\n", len(m)*2)))
@@ -102,12 +124,15 @@ func (r *RedisAdapter) SerializeResponse(res interface{}, writer io.Writer) erro
 
 	default:
 		writer.Write([]byte(fmt.Sprintf("-ERR Unknown type '%s'\r\n", )))
+		logging.Error("Unknown type '%s'. Could not serialize", reflect.TypeOf(res))
 		return fmt.Errorf("Unknown type '%s'. Could not serialize", reflect.TypeOf(res))
+
 	}
 
 	return nil
 }
 
+// the connection handling loop. This gets called for each connection initialized
 func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 	var err error = nil
 
@@ -125,7 +150,7 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 			defer func() {
 				ee := recover()
 				if ee != nil {
-					log.Printf("Error handling error :) %s", ee)
+					logging.Error("Error handling error :) %s", ee)
 				}
 			}()
 
@@ -133,8 +158,8 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 			session.Stop()
 			c.Close()
 
-			if *err != io.EOF && *err != io.ErrClosedPipe {
-				log.Printf("Error processing command: %s\n", e)
+			if *err != io.EOF && *err != ReadError {
+				logging.Error("Error processing command: %s\n", e)
 				debug.PrintStack()
 
 			}
@@ -165,7 +190,7 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 			}
 
 		}
-		fmt.Printf("Stopping Serializer....\n")
+		logging.Debug("Stopping Serializer....\n")
 	}()
 
 	//the request reading loop
@@ -175,7 +200,7 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 		cmd, err := ReadRequest(reader)
 
 		if err != nil {
-			log.Println("Quitting!", err)
+			logging.Info("Quitting!", err)
 			break
 
 		} else {
@@ -190,6 +215,9 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 	return err
 }
 
+
+// Start the redis adapter and listen to its port
+// Returns an error if something went wrong (usually the port is already taken...)
 func (r *RedisAdapter) Start() error {
 	r.isRunning = true
 
@@ -209,6 +237,7 @@ func (r *RedisAdapter) Start() error {
 	return nil
 }
 
+// Stop the adapter. Currently it doesn't wait for everything to exit. TBD...
 func (r *RedisAdapter) Stop() error {
 	r.isRunning = false
 
@@ -219,6 +248,9 @@ func (r *RedisAdapter) Name() string {
 	return "Redis"
 }
 
+// Read one request from the redis protocol
+// This is based on the client code of Go-redis
+// https://github.com/alphazero/Go-Redis
 func ReadRequest(reader *bufio.Reader) (cmd *db.Command, err error) {
 	buf := readToCRLF(reader)
 
@@ -243,6 +275,15 @@ func ReadRequest(reader *bufio.Reader) (cmd *db.Command, err error) {
 	}
 	return nil, fmt.Errorf("Could not read line. buf is '%s'", buf)
 }
+
+
+var ReadError = errors.New("Error Reading from Client")
+/////////////////////////////////////////////////////////////////////////////
+//
+// Everything below is taken from https://github.com/alphazero/Go-Redis
+//
+/////////////////////////////////////////////////////////////////////////////
+
 
 // panics on error (with redis.Error)
 func assertCtlByte(buf []byte, b byte, info string) {
@@ -289,13 +330,15 @@ func readToCRLF(r *bufio.Reader) []byte {
 	//	var buf []byte
 	buf, e := r.ReadBytes(cr_byte)
 	if e != nil {
-		panic(e)
+		logging.Info("Error: %s", e)
+		panic(ReadError)
 	}
 
 	var b byte
 	b, e = r.ReadByte()
 	if e != nil {
-		panic(fmt.Errorf("readToCRLF - ReadByte", e))
+		logging.Info("readToCRLF - ReadByte", e)
+		panic(ReadError)
 	}
 	if b != lf_byte {
 		e = errors.New("<BUG> Expecting a Linefeed byte here!")

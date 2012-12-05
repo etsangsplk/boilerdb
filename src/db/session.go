@@ -1,14 +1,8 @@
-/**
- * Created with IntelliJ IDEA.
- * User: dvirsky
- * Date: 11/24/12
- * Time: 8:16 PM
- * To change this template use File | Settings | File Templates.
- */
+
 package db
 
 import (
-	"log"
+	"logging"
 	"runtime/debug"
 	"net"
 	"config"
@@ -49,7 +43,7 @@ func (s *Session) Run() {
 	defer func() {
 		e := recover()
 		if e != nil {
-			log.Printf("Error running session: %s", e)
+			logging.Info("Error running session: %s", e)
 			debug.PrintStack()
 
 		}
@@ -67,7 +61,7 @@ func (s *Session) Run() {
 
 	}
 
-	log.Printf("Stopped Session %s....\n", s.Addr)
+	logging.Info("Stopped Session %s....\n", s.Addr)
 }
 
 //stop a session on end
@@ -77,7 +71,7 @@ func (s *Session) Stop() {
 	defer s.lock.Unlock()
 
 	if s.IsRunning {
-		log.Printf("Stopping Session %s....\n", s.Addr)
+		logging.Info("Stopping Session %s....\n", s.Addr)
 		s.IsRunning = false
 		s.db.RemoveSink(s.Id())
 		s.db.Stats.ActiveSessions--

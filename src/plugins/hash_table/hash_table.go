@@ -10,7 +10,7 @@ package hash_table
 import (
 //	"fmt"
 	"db"
-	"log"
+	"logging"
 	"bytes"
 	gob "encoding/gob"
 )
@@ -74,7 +74,7 @@ func (p *HashTablePlugin)LoadObject(buf []byte, t uint32) *db.Entry {
 		dec := gob.NewDecoder(buffer)
 		err := dec.Decode(&ht)
 		if err != nil {
-			log.Printf("Could not deserialize oject: %s", err)
+			logging.Info("Could not deserialize oject: %s", err)
 			return nil
 		}
 
@@ -84,7 +84,7 @@ func (p *HashTablePlugin)LoadObject(buf []byte, t uint32) *db.Entry {
 		}
 
 	}
-	log.Printf("Invalid type %u. Could not deserialize", t)
+	logging.Info("Invalid type %u. Could not deserialize", t)
 	return nil
 }
 
@@ -103,4 +103,8 @@ func (p *HashTablePlugin)GetCommands() []db.CommandDescriptor {
 
 func (p* HashTablePlugin) GetTypes() []uint32 {
 	return []uint32{T_HASHTABLE,}
+}
+
+func (p* HashTablePlugin) String() string {
+	return "HASHTABLE"
 }

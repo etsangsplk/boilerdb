@@ -10,8 +10,8 @@ package main
 import (
 	redis_adapter "adapters/redis"
 	"db"
-	"fmt"
-	"log"
+	"logging"
+
 	"net"
 	hash_table "plugins/hash_table"
 	ptree "plugins/prefix_tree"
@@ -19,17 +19,14 @@ import (
 	system "plugins/system"
 	json "plugins/json"
 	"runtime"
-//	"time"
-//	"os"
-//	"runtime/pprof"
-//	"bufio"
+
 )
 
 ///////////////////////////////////////////////////
 
 func main() {
 
-
+	logging.SetLevel(logging.ERROR | logging.WARN | logging.CRITICAL)
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
@@ -46,6 +43,7 @@ func main() {
 	database.RegisterPlugins(ht, smp, ptree, sys, js)
 
 
+
 	//
 
 
@@ -58,22 +56,14 @@ func main() {
 		err := adap.Listen(addr)
 
 		if err != nil {
-			fmt.Printf("Err: %s", err.Error())
-			log.Fatal(err)
+
+			logging.Panic("Could not start adapter: %s", err)
 			return
 		}
 
-		fmt.Printf("Go..\n")
-
+		logging.Info("Starting adapter...")
 		adap.Start()
 
 	}
-	//fmt.Println(ret)
-//	for i := 0; i < 10; i++ {
-//		cmd := db.Command{"HSET", fmt.Sprintf("foo%d", i), [][]byte{[]byte("bar"), []byte("baz")}}
-//		_, _ = database.HandleCommand(&cmd, nil)
-//
-//	}
-	//_, _ = database.Dump()
 
 }

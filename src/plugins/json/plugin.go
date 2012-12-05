@@ -11,7 +11,7 @@ import (
 	"encoding/json"
 	"db"
 	"strings"
-	"log"
+	"logging"
 	"bytes"
 	"fmt"
 
@@ -41,13 +41,16 @@ func parseJSONPath(path string)[]string {
 }
 func HandleJSET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 
-	jo := entry.Value.(*JsonQuery)
+	jo, ok := entry.Value.(*JsonQuery)
+	if !ok {
+		return db.NewResult(db.NewPluginError("JSON", fmt.Sprintf("This does not appear to be a JSON struct")))
+	}
 	var data interface{}
 	dec := json.NewDecoder(strings.NewReader(string(cmd.Args[1])))
 	err := dec.Decode(&data)
 	if err != nil {
-		log.Printf("Error decoding data: %s (%s)", err,string(cmd.Args[1]) )
-		return db.NewResult(db.NewError(db.E_INVALID_PARAMS))
+		logging.Info("Error decoding data: %s (%s)", err,string(cmd.Args[1]) )
+		return db.NewResult(db.NewPluginError("JSON", fmt.Sprintf("Invalid JSON: %s", err)))
 	}
 
 
@@ -62,8 +65,8 @@ func HandleJSET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 	if err == nil {
 		return db.NewResult("OK")
 	}
-	log.Printf("Unable to set: %s", err)
-	return db.NewResult(db.NewError(db.E_INVALID_PARAMS))
+	logging.Warning("Unable to set: %s", err)
+	return db.NewResult(db.NewPluginError("JSON", fmt.Sprintf("Could not set: %s", err)))
 
 }
 
@@ -78,7 +81,7 @@ func HandleJGET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 	ret, err := json.Marshal(jq.Blob)
 
 	if err != nil {
-		return db.NewResult(db.NewError(db.E_UNKNOWN_ERROR))
+		return db.NewResult(db.NewPluginError("JSON", fmt.Sprint(err)))
 
 	}
 
@@ -95,13 +98,12 @@ func HandleJQUERY(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Res
 	}
 	jq := entry.Value.(*JsonQuery)
 
-	arg := strings.Replace(string(cmd.Args[0]), "[", ".", -1)
-	arg = strings.Replace(arg, "]", "", -1)
-	arg = strings.TrimRight(arg, ".")
+	path := parseJSONPath(string(cmd.Args[0]))
 
-
-
-	ret, _ := jq.String(strings.Split(arg, ".")...)
+	ret, err := jq.String(path...)
+	if err != nil {
+		return db.NewResult(db.NewPluginError("JSON", fmt.Sprint(err)))
+	}
 	return db.NewResult(ret)
 }
 
@@ -128,7 +130,7 @@ func (p *JSONPlugin)LoadObject(buf []byte, t uint32) *db.Entry {
 		dec := gob.NewDecoder(buffer)
 		err := dec.Decode(&s)
 		if err != nil {
-			log.Printf("Could not deserialize oject: %s", err)
+			logging.Warning("Could not deserialize oject: %s", err)
 			return nil
 		}
 
@@ -158,3 +160,6 @@ func (p* JSONPlugin) GetTypes() []uint32 {
 }
 
 
+func (p* JSONPlugin) String() string {
+	return "JSON"
+}

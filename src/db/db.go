@@ -1,10 +1,4 @@
-/**
- * Created with IntelliJ IDEA.
- * User: dvirsky
- * Date: 11/15/12
- * Time: 12:59 AM
- * To change this template use File | Settings | File Templates.
- */
+
 package db
 
 import (
@@ -14,7 +8,7 @@ import (
 	gob "encoding/gob"
 	"fmt"
 	"io"
-	"log"
+	"logging"
 	"os"
 //	"reflect"
 	"runtime/debug"
@@ -22,10 +16,6 @@ import (
 	"sync"
 	"time"
 	"util"
-
-//	"runtime"
-
-//	"bufio"
 
 )
 
@@ -93,6 +83,8 @@ type IPlugin interface {
 	GetTypes() []uint32
 
 	LoadObject([]byte, uint32) *Entry
+
+	String() string
 }
 
 ////////////////////////////////////////////////////////////
@@ -115,7 +107,7 @@ func (s *CommandSink) PushCommand(cmd *Command) {
 	defer func() {
 		e := recover()
 		if e != nil {
-			log.Printf("Error writing to sink: %s", e)
+			logging.Error("Error writing to sink: %s", e)
 
 		}
 	}()
@@ -125,7 +117,7 @@ func (s *CommandSink) PushCommand(cmd *Command) {
 	case s.Channel <- cmd:
 		break
 	case <-to:
-		log.Printf("Timeout writing to channel %p", s.Channel)
+		logging.Debug("Timeout writing to channel %p", s.Channel)
 	}
 
 }
@@ -210,7 +202,7 @@ func InitGlobalDataBase() *DataBase {
 	}
 	DB.Running.Set(true)
 	//start the goroutines for dispatching to sinks and for dump loading
-	log.Printf("Starting side goroutines for global database")
+	logging.Info("Starting side goroutines for global database")
 	go DB.multiplexCommandsToSinks()
 	go DB.LoadDump()
 
@@ -222,7 +214,7 @@ func InitGlobalDataBase() *DataBase {
 }
 
 func (db *DataBase) ShutDown() {
-	log.Printf("Shutting down Database...")
+	logging.Info("Shutting down Database...")
 	db.Running.Set(false)
 }
 
@@ -246,22 +238,22 @@ func (db *DataBase) UNLockdown() {
 
 // this goroutine checks for persisting the database
 func (db *DataBase) autoPersist() {
-	log.Printf("Starting Auto Persist loop...")
+	logging.Info("Starting Auto Persist loop...")
 	for db.Running.IsSet() {
 		now := time.Now()
-		log.Printf("Checking persistence... %d changes since %s", DB.changesSinceLastSave, now.Sub(DB.LastSaveTime))
+		logging.Info("Checking persistence... %d changes since %s", DB.changesSinceLastSave, now.Sub(DB.LastSaveTime))
 		//if we need to save the DB - let's do it!
 		if DB.LastSaveTime.Add(time.Second * time.Duration(config.BGSAVE_SECONDS)).Before(now) {
 			if DB.changesSinceLastSave > 0 {
-				log.Printf("AutoSaving Database, %d changes in %s", DB.changesSinceLastSave, now.Sub(DB.LastSaveTime))
+				logging.Info("AutoSaving Database, %d changes in %s", DB.changesSinceLastSave, now.Sub(DB.LastSaveTime))
 
 				go DB.Dump()
 			} else {
-				log.Print("No need to save the db. no changes...")
+				logging.Info("No need to save the db. no changes...")
 			}
 		}
 
-		log.Printf("Sleeping for %s", time.Second*time.Duration(config.BGSAVE_SECONDS))
+		logging.Info("Sleeping for %s", time.Second*time.Duration(config.BGSAVE_SECONDS))
 		// sleep until next bgsave check
 		time.Sleep(time.Second * time.Duration(config.BGSAVE_SECONDS))
 
@@ -272,7 +264,7 @@ func (db *DataBase) SetExpire(key string, entry *Entry, when time.Time) bool {
 
 	entry.expired = true
 	db.expiredKeys[key] = when
-	log.Printf("Expiring %s at %s", key, when)
+	logging.Debug("Expiring %s at %s", key, when)
 
 	return true
 }
@@ -291,6 +283,7 @@ func (db *DataBase) CommandType(cmd string) int {
 //create and add a sink to the database, returning it to the caller
 func (db *DataBase) AddSink(flags int, id string) *CommandSink {
 
+	logging.Info("Adding sink for session %s", id)
 	sink := &CommandSink{
 		make(chan *Command, config.SINK_CHANNEL_SIZE),
 		flags,
@@ -317,7 +310,7 @@ func (db *DataBase) RemoveSink(id string) {
 	if sink != nil {
 		sink.Close()
 		delete(db.commandSinks, id)
-		log.Printf("Removed sink %s", id)
+		logging.Info("Removed sink %s", id)
 	}
 
 }
@@ -326,7 +319,7 @@ func (db *DataBase) registerCommand(cd CommandDescriptor) {
 
 	//make sure we don't double register a command
 	if db.commands[cd.CommandName] != nil {
-		log.Panicf("Cannot register command %s, Already taken by %s", cd.CommandName, db.commands[cd.CommandName].Owner)
+		logging.Panic("Cannot register command %s, Already taken by %s", cd.CommandName, db.commands[cd.CommandName].Owner)
 	}
 	db.commands[cd.CommandName] = &cd
 
@@ -364,7 +357,7 @@ func (db *DataBase) UnlockKey(key string, mode int) {
 
 	keyLock := db.lockedKeys[key]
 	if keyLock == nil {
-		log.Printf("Error: Empty lock! key %s", key)
+		logging.Error("Error: Empty lock! key %s", key)
 		return
 
 	}
@@ -390,7 +383,7 @@ func (db *DataBase) RegisterPlugins(plugins ...IPlugin) {
 	totalCommands := 0
 	for i := range plugins {
 		plugin := plugins[i]
-		fmt.Printf("Registering plugin %s\n", plugin)
+		logging.Info("Registering plugin %s\n", plugin)
 
 		commands := plugin.GetCommands()
 		for j := range commands {
@@ -402,7 +395,7 @@ func (db *DataBase) RegisterPlugins(plugins ...IPlugin) {
 
 		types := plugin.GetTypes()
 		for t := range types {
-			log.Printf("Registering type %d to plugin %s", types[t], plugin)
+			logging.Info("Registering type %d to plugin %s", types[t], plugin)
 			db.types[types[t]] = &plugin
 		}
 	}
@@ -465,7 +458,7 @@ func (db *DataBase) HandleCommand(cmd *Command, session *Session) (*Result, erro
 			//this key is expired - delete it so it will be created if needed
 			if ok && timeout.Before(now) {
 
-				log.Printf("Expiring key %s", cmd.Key)
+				logging.Info("Expiring key %s", cmd.Key)
 
 				delete(db.dictionary, cmd.Key)
 				delete(db.expiredKeys, cmd.Key)
@@ -506,7 +499,7 @@ func (db *DataBase) HandleCommand(cmd *Command, session *Session) (*Result, erro
 				serialized, err := db.serializeEntry(entry, cmd.Key)
 				if err == nil {
 					db.bgsaveTempKeys[cmd.Key] = serialized
-					log.Printf("Temp persisted %s", cmd.Key)
+					logging.Info("Temp persisted %s", cmd.Key)
 				}
 
 			}
@@ -533,7 +526,7 @@ func (db *DataBase) multiplexCommandsToSinks() {
 	defer func() {
 		e := recover()
 		if e != nil {
-			log.Printf("Error multiplexing to channels: %s", e)
+			logging.Error("Error multiplexing to channels: %s", e)
 			debug.PrintStack()
 		}
 	}()
@@ -558,7 +551,7 @@ func (db *DataBase) serializeEntry(entry *Entry, k string) (*SerializedEntry, er
 	enc := gob.NewEncoder(&buf)
 	err := entry.Value.Serialize(enc)
 	if err != nil {
-		log.Printf("Could not serialize entry: %s", err)
+		logging.Warning("Could not serialize entry: %s", err)
 		return nil, err
 	}
 	serialized := SerializedEntry{buf.Bytes(), uint64(buf.Len()), entry.Type, k}
@@ -570,13 +563,13 @@ func (db *DataBase) serializeEntry(entry *Entry, k string) (*SerializedEntry, er
 func (db *DataBase) Dump() (int64, error) {
 
 	if db.DataLoadInProgress.IsSet() {
-		log.Printf("Data Load In Progress!")
+		logging.Debug("Data Load In Progress!")
 		return 0, fmt.Errorf("LOAD in progress")
 	}
 
 	currentlySaving := db.BGsaveInProgress.GetSet(true)
 	if currentlySaving {
-		log.Printf("BGSave in progress")
+		logging.Debug("BGSave in progress")
 		return 0, fmt.Errorf("BGSave in progress")
 	}
 
@@ -592,11 +585,11 @@ func (db *DataBase) Dump() (int64, error) {
 	//make sure we release the save flag
 	defer func() { db.BGsaveInProgress.Set(false) }()
 
-	log.Printf("Starting BGSAVE...")
+	logging.Info("Starting BGSAVE...")
 	//open the dump file for writing
 	fp, err := os.Create(fmt.Sprintf("%s/%s", config.WORKING_DIRECTORY, "dump.bdb"))
 	if err != nil {
-		log.Printf("Could not save to file: %s", err)
+		logging.Error("Could not save to file: %s", err)
 		return 0, err
 	}
 
@@ -608,7 +601,6 @@ func (db *DataBase) Dump() (int64, error) {
 		//try to save from temp dict
 		tmpSE := db.bgsaveTempKeys[k]
 		if tmpSE != nil {
-			fmt.Printf("getting temp serialized...")
 			globalEnc.Encode(tmpSE)
 			delete(db.bgsaveTempKeys, k)
 			db.UnlockKey(k, CMD_WRITER)
@@ -619,7 +611,7 @@ func (db *DataBase) Dump() (int64, error) {
 
 		//if the save ids do not match - no need to save
 		if entry.saveId != saveId {
-			log.Printf("Skipping new entry %s", k)
+			logging.Debug("Skipping new entry %s", k)
 			db.UnlockKey(k, CMD_WRITER)
 			continue
 		}
@@ -630,7 +622,7 @@ func (db *DataBase) Dump() (int64, error) {
 
 		db.UnlockKey(k, CMD_WRITER)
 		if err != nil {
-			log.Printf("Could not serialize entry %s: %s", entry, err)
+			logging.Info("Could not serialize entry %s: %s", entry, err)
 			continue
 		}
 		globalEnc.Encode(serialized)
@@ -641,7 +633,7 @@ func (db *DataBase) Dump() (int64, error) {
 	fp.Close()
 	db.changesSinceLastSave = 0
 	db.LastSaveTime = time.Now()
-	log.Printf("Finished BGSAVE in %s", time.Now().Sub(startTime))
+	logging.Info("Finished BGSAVE in %s", time.Now().Sub(startTime))
 	return 0, nil
 }
 
@@ -652,7 +644,7 @@ func (db *DataBase) LoadDump() error {
 	//make sure atomically no one is currently loading
 	currentlyLoading := db.DataLoadInProgress.GetSet(true)
 	if currentlyLoading {
-		log.Printf("Cannot load dump - already loading dump")
+		logging.Debug("Cannot load dump - already loading dump")
 		return fmt.Errorf("Cannot load dump - already loading dump")
 	}
 
@@ -660,7 +652,7 @@ func (db *DataBase) LoadDump() error {
 
 	fp, err := os.Open(fmt.Sprintf("%s/%s", config.WORKING_DIRECTORY, "dump.bdb"))
 	if err != nil {
-		log.Printf("Could not load file: %s", err)
+		logging.Error("Could not load file: %s", err)
 		return err
 	}
 
@@ -678,21 +670,21 @@ func (db *DataBase) LoadDump() error {
 
 			creator := db.types[se.Type]
 			if creator == nil {
-				log.Panicf("Got invalid serializer type %d", se.Type)
+				logging.Panic("Got invalid serializer type %d", se.Type)
 			}
 
 			entry := (*creator).LoadObject(se.Bytes, se.Type)
 			if entry != nil {
 				db.dictionary[se.Key] = entry
 				nLoaded++
-				if nLoaded%1000 == 0 {
-					fmt.Println(nLoaded)
+				if nLoaded%10000 == 0 {
+					logging.Info("Loaded %d objects from dump", nLoaded)
 				}
 			}
 		}
 
 	}
 
-	log.Printf("Loaded %d objects from dump", nLoaded)
+	logging.Info("Finished dump load. Loaded %d objects from dump", nLoaded)
 	return nil
 }

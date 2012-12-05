@@ -12,7 +12,7 @@ import (
 	"db"
 //	"io"
 	gob "encoding/gob"
-	"log"
+	"logging"
 	"bytes"
 )
 
@@ -83,7 +83,7 @@ func (p *SimplePlugin)LoadObject(buf []byte, t uint32) *db.Entry {
 		dec := gob.NewDecoder(buffer)
 		err := dec.Decode(&s)
 		if err != nil {
-			log.Printf("Could not deserialize oject: %s", err)
+			logging.Info("Could not deserialize oject: %s", err)
 			return nil
 		}
 
@@ -92,7 +92,7 @@ func (p *SimplePlugin)LoadObject(buf []byte, t uint32) *db.Entry {
 			Type: db.T_STRING,
 		}
 	} else {
-		log.Printf("Could not load value, invalid type %d", t)
+		logging.Info("Could not load value, invalid type %d", t)
 	}
 	return nil
 
@@ -114,4 +114,8 @@ func (p *SimplePlugin)GetCommands() []db.CommandDescriptor {
 
 func (p* SimplePlugin) GetTypes() []uint32 {
 	return []uint32{db.T_STRING,}
+}
+
+func (p* SimplePlugin) String() string {
+	return "SIMPLE"
 }

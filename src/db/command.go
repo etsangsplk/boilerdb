@@ -1,10 +1,4 @@
-/**
- * Created with IntelliJ IDEA.
- * User: dvirsky
- * Date: 11/23/12
- * Time: 2:51 AM
- * To change this template use File | Settings | File Templates.
- */
+
 package db
 
 import (

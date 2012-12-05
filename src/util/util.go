@@ -9,7 +9,6 @@ package util
 
 import (
 	"sync/atomic"
-	"fmt"
 	)
 
 type AtomicFlag struct {
@@ -21,8 +20,6 @@ func (af *AtomicFlag)IsSet() bool {
 }
 
 func (af *AtomicFlag)Set(value bool) {
-
-	fmt.Println(value)
 	if value {
 		atomic.StoreInt32(&(af.value), 1)
 	} else {

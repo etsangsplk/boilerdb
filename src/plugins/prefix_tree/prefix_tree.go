@@ -12,7 +12,7 @@ import (
 	gob "encoding/gob"
 	"strconv"
 	"fmt"
-	"log"
+	"logging"
 	"bytes"
 )
 
@@ -159,7 +159,7 @@ func (p *PrefixTreePlugin)LoadObject(buf []byte, t uint32) *db.Entry {
 		dec := gob.NewDecoder(buffer)
 		err := dec.Decode(&pt)
 		if err != nil {
-			log.Printf("Could not deserialize oject: %s", err)
+			logging.Info("Could not deserialize oject: %s", err)
 			return nil
 		}
 
@@ -169,7 +169,7 @@ func (p *PrefixTreePlugin)LoadObject(buf []byte, t uint32) *db.Entry {
 		}
 
 	}
-	log.Printf("Invalid type %u. Could not deserialize", t)
+	logging.Info("Invalid type %u. Could not deserialize", t)
 	return nil
 }
 
@@ -189,4 +189,8 @@ func (p *PrefixTreePlugin)GetCommands() []db.CommandDescriptor {
 
 func (p* PrefixTreePlugin) GetTypes() []uint32 {
 	return []uint32{T_PREFIX_TREE,}
+}
+
+func (p* PrefixTreePlugin) String() string {
+	return "PREFIX_TREE"
 }
