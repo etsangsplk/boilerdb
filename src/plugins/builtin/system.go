@@ -1,4 +1,5 @@
-package system
+package builtin
+
 import (
 	gob "encoding/gob"
 	"db"
@@ -10,23 +11,18 @@ import (
 	"strconv"
 )
 
-type SystemPlugin struct {}
+const BUILTIN = "BUILTIN"
 
-type  SystemDataStruct struct { }
 
-func (p *SystemDataStruct)Serialize(g *gob.Encoder) error {
+type BuiltinPlugin struct {}
+
+type  BuiltinDataStruct struct { }
+
+func (p *BuiltinDataStruct)Serialize(g *gob.Encoder) error {
 	return nil
 }
 
 
-func (p *SystemPlugin)LoadObject(buf []byte, t uint32) *db.Entry {
-	return nil
-}
-
-
-func (p *SystemPlugin)CreateObject() *db.Entry {
-	return nil
-}
 
 func HandleMONITOR(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 
@@ -67,8 +63,6 @@ func HandleMONITOR(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Re
 
 // perform BGSAVE - save the DB returning immediately
 func HandleBGSAVE(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
-
-
 
 	//don't let another BGSAVE run
 	if db.DB.BGsaveInProgress.IsSet() {
@@ -159,25 +153,62 @@ keys: %d
 
 }
 
-func (p *SystemPlugin)GetCommands() []db.CommandDescriptor {
 
 
-	return []db.CommandDescriptor {
-		db.CommandDescriptor{"INFO", 0, HandleINFO, p, 0, db.CMD_SYSTEM},
-		db.CommandDescriptor{"SAVE", 0, HandleSAVE, p, 0, db.CMD_WRITER},
-		db.CommandDescriptor{"EXPIRE", 1, HandleEXPIRE, p, 0, db.CMD_WRITER},
-		db.CommandDescriptor{"BGSAVE", 0, HandleBGSAVE, p, 0, db.CMD_READER},
-		db.CommandDescriptor{"MONITOR", 0, HandleMONITOR, p, 0, db.CMD_SYSTEM},
+
+func (p *BuiltinPlugin)LoadObject(buf []byte, t string) *db.Entry {
+	return nil
+}
 
 
+func (p *BuiltinPlugin)CreateObject(cmd string) (*db.Entry, string) {
+	return nil, ""
+}
+
+func (p *BuiltinPlugin)GetManifest() db.PluginManifest {
+
+	return db.PluginManifest {
+
+		Name: BUILTIN,
+
+		Types: make([]string, 0),
+
+		Commands:  []db.CommandDescriptor {
+			db.CommandDescriptor{
+				CommandName: "INFO",
+				MinArgs: 0,	MaxArgs: 0,
+				Handler: HandleINFO,
+				CommandType: db.CMD_SYSTEM,
+			},
+			db.CommandDescriptor{
+				CommandName: "SAVE",
+				MinArgs: 0,	MaxArgs: 0,
+				Handler: HandleSAVE,
+				CommandType: db.CMD_WRITER,
+			},
+			db.CommandDescriptor{
+				CommandName: "BGSAVE",
+				MinArgs: 0,	MaxArgs: 0,
+				Handler: HandleBGSAVE,
+				CommandType: db.CMD_READER,
+			},
+			db.CommandDescriptor{
+				CommandName: "EXPIRE",
+				MinArgs: 1,	MaxArgs: 1,
+				Handler: HandleEXPIRE,
+				CommandType: db.CMD_WRITER,
+			},
+			db.CommandDescriptor{
+				CommandName: "MONITOR",
+				MinArgs: 0,	MaxArgs: 0,
+				Handler: HandleMONITOR,
+				CommandType: db.CMD_SYSTEM,
+			},
+		},
 	}
 }
 
 
-func (p* SystemPlugin) GetTypes() []uint32 {
-	return []uint32{}
-}
-
- func (p* SystemPlugin) String() string {
-	 return "STRING"
+ func (p* BuiltinPlugin) String() string {
+	 return "BUILTIN"
  }

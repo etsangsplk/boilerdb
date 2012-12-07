@@ -10,6 +10,7 @@ package logging
 import (
 	"log"
 	"fmt"
+	"runtime/debug"
 )
 
 const (
@@ -37,7 +38,7 @@ func Debug(msg string, args ...interface{}) {
 }
 
 func Info(msg string, args ...interface{}) {
-	
+
 	if level & INFO != 0 {
 		log.Printf(fmt.Sprintf("INFO: %s",  msg), args...)
 	}
@@ -58,9 +59,12 @@ func Error(msg string, args ...interface{}) {
 func Critical(msg string, args ...interface{}) {
 	if level & CRITICAL != 0 {
 		log.Printf(fmt.Sprintf("CRITICAL: %s",  msg), args...)
+		log.Println(debug.Stack())
 	}
 }
 
 func Panic(msg string, args ...interface{}) {
+	log.Println(debug.Stack())
 	log.Panicf(msg, args...)
+
 }

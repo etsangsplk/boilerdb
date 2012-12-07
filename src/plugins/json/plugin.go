@@ -17,7 +17,7 @@ import (
 
 )
 
-const T_JSON uint32 = 32
+const T_JSON string = "JSON"
 
 
 func (jq *JsonQuery)Serialize(g *gob.Encoder) error {
@@ -109,19 +109,14 @@ func HandleJQUERY(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Res
 
 
 
-func (p *JSONPlugin)CreateObject() *db.Entry {
+func (p *JSONPlugin)CreateObject(commandName string) (*db.Entry, string) {
 
-	ret := &db.Entry{
-		Value: NewQuery(make(map[string]interface{})) ,
-		Type: T_JSON,
-	}
+	return &db.Entry{ Value: NewQuery(make(map[string]interface{})) }, T_JSON
 
-	//fmt.Println("Created new hash table ", ret)
-	return ret
 }
 
 //deserialize and create a db entry
-func (p *JSONPlugin)LoadObject(buf []byte, t uint32) *db.Entry {
+func (p *JSONPlugin)LoadObject(buf []byte, t string) *db.Entry {
 
 	fmt.Println(t)
 	if t == T_JSON {
@@ -134,31 +129,46 @@ func (p *JSONPlugin)LoadObject(buf []byte, t uint32) *db.Entry {
 			return nil
 		}
 
-		return &db.Entry{
-			Value: &s,
-			Type: T_JSON,
-		}
+		return &db.Entry{ Value: &s }
+
+	}else {
+		logging.Error("Could not load object - invalid type %s", t)
 	}
 
 	return nil
 }
 
+func (p *JSONPlugin)GetManifest() db.PluginManifest {
 
-func (p *JSONPlugin)GetCommands() []db.CommandDescriptor {
+	return db.PluginManifest {
 
+		Name: "JSON",
 
-	return []db.CommandDescriptor {
-		db.CommandDescriptor{"JSET",2, HandleJSET, p, 1, db.CMD_WRITER},
-		db.CommandDescriptor{"JQUERY", 1, HandleJQUERY, p, 1, db.CMD_READER},
-		db.CommandDescriptor{"JGET", 0, HandleJGET, p, 1, db.CMD_READER},
+		Commands:  []db.CommandDescriptor {
+			db.CommandDescriptor{
+				CommandName: "JSET",
+				MinArgs: 2,	MaxArgs: 2,
+				Handler: HandleJSET,
+				CommandType: db.CMD_WRITER,
+			},
+			db.CommandDescriptor{
+				CommandName: "JGET",
+				MinArgs: 0,	MaxArgs: 0,
+				Handler: HandleJGET,
+				CommandType: db.CMD_READER,
+			},
+			db.CommandDescriptor{
+				CommandName: "JQUERY",
+				MinArgs: 1,	MaxArgs: 1,
+				Handler: HandleJQUERY,
+				CommandType: db.CMD_READER,
+			},
+
+		},
+		Types: []string{ T_JSON, },
+
 	}
 }
-
-
-func (p* JSONPlugin) GetTypes() []uint32 {
-	return []uint32{T_JSON,}
-}
-
 
 func (p* JSONPlugin) String() string {
 	return "JSON"

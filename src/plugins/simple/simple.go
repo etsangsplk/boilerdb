@@ -29,6 +29,7 @@ func (ht *SimpleStruct)Serialize(g *gob.Encoder) error {
 }
 
 
+const T_STRING = "STRING"
 
 type SimplePlugin struct {
 
@@ -65,19 +66,17 @@ func HandlePING(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 	return db.NewResult("PONG")
 }
 
-func (p *SimplePlugin)CreateObject() *db.Entry {
+func (p *SimplePlugin)CreateObject(commandName string) (*db.Entry, string) {
 
-	ret := &db.Entry{ Value: &SimpleStruct{},
-		Type: db.T_STRING,
-	}
-	//fmt.Println("Created new hash table ", ret)
-	return ret
+	ret := &db.Entry{ Value: &SimpleStruct{} }
+
+	return ret, T_STRING
 }
 
 //deserialize and create a db entry
-func (p *SimplePlugin)LoadObject(buf []byte, t uint32) *db.Entry {
+func (p *SimplePlugin)LoadObject(buf []byte, typeName string) *db.Entry {
 
-	if t == db.T_STRING {
+	if typeName == T_STRING {
 		var s SimpleStruct
 		buffer := bytes.NewBuffer(buf)
 		dec := gob.NewDecoder(buffer)
@@ -87,35 +86,56 @@ func (p *SimplePlugin)LoadObject(buf []byte, t uint32) *db.Entry {
 			return nil
 		}
 
-		return &db.Entry{
-			Value: &s,
-			Type: db.T_STRING,
-		}
+		return &db.Entry{ Value: &s }
+
+
 	} else {
-		logging.Info("Could not load value, invalid type %d", t)
+		logging.Warning("Could not load value, invalid type %d", typeName)
 	}
 	return nil
 
 }
 
 
-func (p *SimplePlugin)GetCommands() []db.CommandDescriptor {
+// Get the plugin manifest for the simple plugin
+func (p *SimplePlugin)GetManifest() db.PluginManifest {
 
+	return db.PluginManifest {
 
-	return []db.CommandDescriptor {
-		db.CommandDescriptor{"SET",1, HandleSET, p, 0, db.CMD_WRITER},
-		db.CommandDescriptor{"GET", 0, HandleGET, p, 0, db.CMD_READER},
-		db.CommandDescriptor{"PING",0, HandlePING, p, 0, db.CMD_READER},
-		db.CommandDescriptor{"EXISTS", 0, HandleEXISTS, p, 0, db.CMD_READER},
+		Name: "SIMPLE",
+		Types: []string{ T_STRING, },
+		Commands:  []db.CommandDescriptor {
+			db.CommandDescriptor{
+				CommandName: "SET",
+				MinArgs: 1,	MaxArgs: 1,
+				Handler: HandleSET,
+				CommandType: db.CMD_WRITER,
+			},
+			db.CommandDescriptor{
+				CommandName: "GET",
+				MinArgs: 0,	MaxArgs: 0,
+				Handler: HandleGET,
+				CommandType: db.CMD_READER,
+			},
+			db.CommandDescriptor{
+				CommandName: "PING",
+				MinArgs: 0,	MaxArgs: 0,
+				Handler: HandlePING,
+				CommandType: db.CMD_READER,
+			},
+			db.CommandDescriptor{
+				CommandName: "EXISTS",
+				MinArgs: 0,	MaxArgs: 0,
+				Handler: HandleEXISTS,
+				CommandType: db.CMD_READER,
+			},
+		},
+
 
 	}
+
 }
-
-
-func (p* SimplePlugin) GetTypes() []uint32 {
-	return []uint32{db.T_STRING,}
-}
-
+// String representation of the plugin to support %s formatting
 func (p* SimplePlugin) String() string {
 	return "SIMPLE"
 }

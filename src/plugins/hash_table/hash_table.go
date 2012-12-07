@@ -55,17 +55,14 @@ func HandleHGETALL(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Re
 	return r
 }
 
-const T_HASHTABLE uint32 = 8
-func (p *HashTablePlugin)CreateObject() *db.Entry {
+const T_HASHTABLE = "HASHTABLE"
 
-	ret := &db.Entry{ Value: &HashTableStruct{make(map[string][]byte)},
-					 Type: T_HASHTABLE,
-					}
-	//fmt.Println("Created new hash table ", ret)
-	return ret
+func (p *HashTablePlugin)CreateObject(commandName string) (*db.Entry, string) {
+
+	return &db.Entry{ Value: &HashTableStruct{make(map[string][]byte)} }, T_HASHTABLE
 }
 
-func (p *HashTablePlugin)LoadObject(buf []byte, t uint32) *db.Entry {
+func (p *HashTablePlugin)LoadObject(buf []byte, t string)  *db.Entry {
 
 	if t == T_HASHTABLE {
 
@@ -78,31 +75,46 @@ func (p *HashTablePlugin)LoadObject(buf []byte, t uint32) *db.Entry {
 			return nil
 		}
 
-		return &db.Entry{
-			Value: &ht,
-			Type: T_HASHTABLE,
-		}
+		return &db.Entry{ Value: &ht }
 
 	}
-	logging.Info("Invalid type %u. Could not deserialize", t)
+	logging.Error("Invalid type %u. Could not deserialize", t)
 	return nil
 }
 
 
 
 
-func (p *HashTablePlugin)GetCommands() []db.CommandDescriptor {
+func (p *HashTablePlugin)GetManifest() db.PluginManifest {
 
 
-	return []db.CommandDescriptor {
-		db.CommandDescriptor{"HSET", 2, HandleHSET, p, 0, db.CMD_WRITER},
-		db.CommandDescriptor{"HGET", 1, HandleHGET, p, 0, db.CMD_READER},
-		db.CommandDescriptor{"HGETALL", 0, HandleHGETALL, p, 0, db.CMD_READER},
+	return db.PluginManifest {
+
+		Name: T_HASHTABLE,
+
+		Types: []string{ T_HASHTABLE, },
+
+		Commands:  []db.CommandDescriptor {
+			db.CommandDescriptor{
+				CommandName: "HSET",
+				MinArgs: 2,	MaxArgs: 2,
+				Handler: HandleHSET,
+				CommandType: db.CMD_WRITER,
+			},
+			db.CommandDescriptor{
+				CommandName: "HGET",
+				MinArgs: 1,	MaxArgs: 1,
+				Handler: HandleHGET,
+				CommandType: db.CMD_READER,
+			},
+			db.CommandDescriptor{
+				CommandName: "HGETALL",
+				MinArgs: 0,	MaxArgs: 0,
+				Handler: HandleHGETALL,
+				CommandType: db.CMD_READER,
+			},
+		},
 	}
-}
-
-func (p* HashTablePlugin) GetTypes() []uint32 {
-	return []uint32{T_HASHTABLE,}
 }
 
 func (p* HashTablePlugin) String() string {

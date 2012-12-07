@@ -6,6 +6,7 @@ import (
 	"runtime/debug"
 	"net"
 	"config"
+	"fmt"
 	"sync"
 )
 type Session struct {
@@ -52,11 +53,22 @@ func (s *Session) Run() {
 		cmd := <- s.InChan
 
 		if cmd != nil {
-			ret, _ := s.db.HandleCommand(cmd, s)
 
-			if s.OutChan != nil {
-				s.OutChan <- ret
-			}
+			func() {
+				defer func() {
+					e := recover()
+					if e != nil {
+						logging.Error("Runtime erro in plugin: %s", e)
+						s.OutChan <- NewResult(NewPluginError("",  fmt.Sprintf("%s", e)))
+					}
+				}()
+				ret, _ := s.db.HandleCommand(cmd, s)
+				if s.OutChan != nil {
+					s.OutChan <- ret
+				}
+			}()
+
+
 		}
 
 	}

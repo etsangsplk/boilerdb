@@ -5,7 +5,14 @@
  * Time: 4:13 AM
  * To change this template use File | Settings | File Templates.
  */
+
 package config
+import (
+//	goconf "code.google.com/p/goconf/conf"
+//	"camlistore.org/pkg/serverconfig"
+
+//"reflect"
+	)
 
 var (
 	//where we'll save the dump files
@@ -24,3 +31,8 @@ var (
 	// setting the value too low will cause us to try the next time, no biggie
 	BGSAVE_SECONDS = 120
 )
+
+func init() {
+
+
+}

@@ -10,7 +10,6 @@ import (
 	"io"
 	"logging"
 	"os"
-//	"reflect"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -41,7 +40,7 @@ type DataStruct interface {
 //Dictionary Entry struct
 type Entry struct {
 	Value   DataStruct
-	Type    uint32
+	TypeId  uint8
 	saveId  uint8
 	expired bool
 }
@@ -49,7 +48,7 @@ type Entry struct {
 type SerializedEntry struct {
 	Bytes []byte
 	Len   uint64
-	Type  uint32
+	Type  string
 	Key   string
 }
 
@@ -68,22 +67,35 @@ type CommandDescriptor struct {
 	CommandName string
 	//used to validate/parse query format. e.g. "<key> <*> <int> [LIMIT <%d> <%d>]" => /(\s) (\s) ([[:num]]+) (LIMIT ([[:num]]+) ([[:num]]+))?
 	MinArgs       int
+	MaxArgs		  int
 	Handler       HandlerFunc
 	Owner         IPlugin
-	ValidTypeMask uint32
+
+	//whether the command is a reader, writer or builtin command
 	CommandType   int
 }
 
+type PluginManifest struct {
+
+	Name string
+	Commands []CommandDescriptor
+	Types []string
+
+}
+
+
 //The API for an abstract plugin, that creates data structs and registers handlers
 type IPlugin interface {
-	CreateObject() *Entry
+	CreateObject(commandName string) (*Entry, string)
 
-	GetCommands() []CommandDescriptor
+	GetManifest() PluginManifest
+//		GetCommands() []CommandDescriptor
+//
+//	GetTypes() []uint32
+//
+	LoadObject([]byte, string) *Entry
 
-	GetTypes() []uint32
-
-	LoadObject([]byte, uint32) *Entry
-
+	//used to identify the plugin as a string, for the %s formatting...
 	String() string
 }
 
@@ -136,17 +148,35 @@ func (s *CommandSink) Close() {
 //
 // The core database itself
 //
-////////////////////////////////////////////////////////////
-
-
 type DataBase struct {
 
+	//the command registrry
 	commands   map[string]*CommandDescriptor
+
+	//the main dictionary
 	dictionary map[string]*Entry
+
+	//currently locked keys
 	lockedKeys map[string]*KeyLock
+
+	//global dictionary lock
 	dictLock   sync.Mutex
+
+	//global save lock used to stop all running processes when saving a snapshot in blocking mode
 	saveLock   sync.RWMutex
-	types      map[uint32]*IPlugin
+
+	// type registry.
+	// each type is externally represented as a string, but internally mapped to an id between 0 and 255
+	// the order of loading plugins changes the ids but it doesn't matter
+
+	//this is the incremental type id counter that increases with each type registering
+	maxTypeId uint8
+	// for each type id, we know the "owner" plugin if we need to deserialize or create a new object of that typ
+	pluginsByTypeId  map[uint8]*IPlugin
+	// mapping of type names to ids
+	typeNamesToIds	map[string]uint8
+	// mapping of type ids back to names
+	typeIdsToNames	map[uint8]string
 
 	//save status
 	currentSaveId        uint8
@@ -179,6 +209,7 @@ type DataBase struct {
 
 var DB *DataBase = nil
 
+//this represents a lock on a key with refernce counting
 type KeyLock struct {
 	sync.RWMutex
 	refCount int
@@ -193,7 +224,10 @@ func InitGlobalDataBase() *DataBase {
 		lockedKeys:    make(map[string]*KeyLock),
 		dictLock:      sync.Mutex{},
 		saveLock:      sync.RWMutex{},
-		types:         make(map[uint32]*IPlugin),
+		pluginsByTypeId:	make(map[uint8]*IPlugin),
+		typeIdsToNames: make(map[uint8]string),
+		typeNamesToIds: make(map[string]uint8),
+		maxTypeId: 	   0,
 		currentSaveId: 0,
 		commandSinks:  make(map[string]*CommandSink),
 		sinkChan:      make(chan *Command, 10),
@@ -269,9 +303,9 @@ func (db *DataBase) SetExpire(key string, entry *Entry, when time.Time) bool {
 	return true
 }
 
-//get the mode of a command (writer /reader / system)
+//get the mode of a command (writer /reader / builtin)
 //return the mode identifier or 0 if none is found
-func (db *DataBase) CommandType(cmd string) int {
+func (db *DataBase) CommandType (cmd string) int {
 
 	commandDesc := db.commands[cmd]
 	if commandDesc != nil {
@@ -279,6 +313,8 @@ func (db *DataBase) CommandType(cmd string) int {
 	}
 	return 0
 }
+
+
 
 //create and add a sink to the database, returning it to the caller
 func (db *DataBase) AddSink(flags int, id string) *CommandSink {
@@ -377,31 +413,87 @@ func (db *DataBase) UnlockKey(key string, mode int) {
 
 }
 
+
+func (db *DataBase) registerType(owner *IPlugin, name string) (uint8, error) {
+
+
+	// lock the dictionary just to make sure no one else is registering a type at the same time.
+	// It shouldn't happen as the database is not started yet, but just in case... :)
+	db.dictLock.Lock()
+	defer db.dictLock.Unlock()
+
+	//check if the type is already registered
+	_, ok := db.typeNamesToIds[name]
+	if ok {
+		logging.Critical("Could not register type %s: It already exists in the database!", name)
+		return 0, fmt.Errorf("Could not register type %s: It already exists in the database!")
+	}
+
+	//increase the max type id
+	db.maxTypeId++
+	if db.maxTypeId == 255 {
+
+		logging.Panic("255 types registered! Dude!!!")
+
+	}
+
+	//register the type id to string mapping
+	typeId := db.maxTypeId
+	db.typeNamesToIds[name] = typeId
+	db.typeIdsToNames[typeId] = name
+
+	//register the plugin as the owner of this type
+	db.pluginsByTypeId[typeId] = owner
+
+	logging.Info("Registerd plugin %s as the owner of type %s, mapped to id %d", owner, name, typeId)
+
+	return typeId, nil
+}
+
+func (db *DataBase)GetTypeId(typeName string) uint8 {
+	return db.typeNamesToIds[typeName]
+}
+
 //register the plugins in the database
-func (db *DataBase) RegisterPlugins(plugins ...IPlugin) {
+func (db *DataBase) RegisterPlugins(plugins ...IPlugin) error {
 
 	totalCommands := 0
 	for i := range plugins {
 		plugin := plugins[i]
 		logging.Info("Registering plugin %s\n", plugin)
 
-		commands := plugin.GetCommands()
-		for j := range commands {
+		manifest := plugin.GetManifest()
 
+		//register the manifest plugins
+		for t := range manifest.Types {
+
+			logging.Info("Registering type %d to plugin %s", manifest.Types[t], plugin)
+
+			_, err := db.registerType(&plugin, manifest.Types[t])
+			if err != nil {
+				logging.Error("Could not finish registering plugins for types, something is WRONG! go fix your DB")
+				return err
+			}
+
+		}
+
+
+		for j := range manifest.Commands {
+
+			manifest.Commands[j].Owner = plugin
 			totalCommands++
 
-			db.registerCommand(commands[j])
+			db.registerCommand(manifest.Commands[j])
+
 		}
 
-		types := plugin.GetTypes()
-		for t := range types {
-			logging.Info("Registering type %d to plugin %s", types[t], plugin)
-			db.types[types[t]] = &plugin
-		}
+
 	}
-	fmt.Printf("Registered %d plugins and %d commands\n", len(plugins), totalCommands)
+	logging.Info("Registered %d plugins and %d commands\n", len(plugins), totalCommands)
 	db.Stats.RegisteredCommands = totalCommands
 	db.Stats.RegisteredPlugins = len(plugins)
+
+	return nil
 
 }
 
@@ -438,11 +530,19 @@ func (db *DataBase) HandleCommand(cmd *Command, session *Session) (*Result, erro
 
 	}
 
-	if commandDesc.CommandType == CMD_WRITER {
-		db.changesSinceLastSave++
+	if commandDesc.MaxArgs < len(cmd.Args) {
+		return NewResult(&Error{E_TOO_MANY_PARAMS}),
+		fmt.Errorf("Expected at most %d params for command %s, got %d",
+			commandDesc.MaxArgs,
+			cmd.Command,
+			len(cmd.Args))
+
 	}
 
+
+
 	var ret *Result = nil
+
 	if cmd.Key != "" {
 		db.dictLock.Lock()
 
@@ -473,11 +573,13 @@ func (db *DataBase) HandleCommand(cmd *Command, session *Session) (*Result, erro
 			//we create new entries just on writer functions
 			if commandDesc.CommandType == CMD_WRITER {
 
-				entry = commandDesc.Owner.CreateObject()
+				var typeName string
+				entry, typeName = commandDesc.Owner.CreateObject(commandDesc.CommandName)
 
 				//if the entry is nil - we do nothing for the tree
 				if entry != nil {
 					entry.saveId = db.currentSaveId
+					entry.TypeId = db.GetTypeId(typeName)
 					db.dictionary[cmd.Key] = entry
 				}
 			}
@@ -488,10 +590,8 @@ func (db *DataBase) HandleCommand(cmd *Command, session *Session) (*Result, erro
 		if entry != nil {
 			//lock the entry for reading or writing
 			db.LockKey(cmd.Key, commandDesc.CommandType)
-			defer func() {
+			defer db.UnlockKey(cmd.Key, commandDesc.CommandType)
 
-				db.UnlockKey(cmd.Key, commandDesc.CommandType)
-			}()
 
 			//we need to persist this entry to the temp persist dictionary! it is about to be persisted
 			if commandDesc.CommandType == CMD_WRITER &&
@@ -509,6 +609,9 @@ func (db *DataBase) HandleCommand(cmd *Command, session *Session) (*Result, erro
 
 	} else {
 		ret = commandDesc.Handler(cmd, nil, session)
+	}
+	if commandDesc.CommandType == CMD_WRITER {
+		db.changesSinceLastSave++
 	}
 
 	//duplicate the command to all the db's sinks
@@ -536,7 +639,7 @@ func (db *DataBase) multiplexCommandsToSinks() {
 		for i := range db.commandSinks {
 
 			sink, ok := db.commandSinks[i]
-			if ok && (sink.CommandType&db.CommandType(cmd.Command)) != 0 {
+			if ok && (sink.CommandType & db.CommandType(cmd.Command)) != 0 {
 				sink.PushCommand(cmd)
 
 			}
@@ -554,7 +657,12 @@ func (db *DataBase) serializeEntry(entry *Entry, k string) (*SerializedEntry, er
 		logging.Warning("Could not serialize entry: %s", err)
 		return nil, err
 	}
-	serialized := SerializedEntry{buf.Bytes(), uint64(buf.Len()), entry.Type, k}
+	//get the string type name
+	typeName, ok := db.typeIdsToNames[entry.TypeId]
+	if !ok {
+		return nil, fmt.Errorf("Could not serialize entry %s - unregistered type id %s", k, entry.TypeId)
+	}
+	serialized := SerializedEntry{buf.Bytes(), uint64(buf.Len()), typeName, k}
 	return &serialized, nil
 
 }
@@ -668,12 +776,18 @@ func (db *DataBase) LoadDump() error {
 
 		if err == nil {
 
-			creator := db.types[se.Type]
+			typeId, ok := db.typeNamesToIds[se.Type]
+			if !ok {
+				logging.Critical("Could not find a plugin for type %s", typeId)
+				continue
+			}
+			creator := db.pluginsByTypeId[typeId]
 			if creator == nil {
 				logging.Panic("Got invalid serializer type %d", se.Type)
 			}
 
 			entry := (*creator).LoadObject(se.Bytes, se.Type)
+			entry.TypeId = db.GetTypeId(se.Type)
 			if entry != nil {
 				db.dictionary[se.Key] = entry
 				nLoaded++

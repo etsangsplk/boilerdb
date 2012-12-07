@@ -16,7 +16,7 @@ import (
 	hash_table "plugins/hash_table"
 	ptree "plugins/prefix_tree"
 	simple "plugins/simple"
-	system "plugins/system"
+	builtin "plugins/builtin"
 	json "plugins/json"
 	"runtime"
 
@@ -26,7 +26,7 @@ import (
 
 func main() {
 
-	logging.SetLevel(logging.ERROR | logging.WARN | logging.CRITICAL)
+	logging.SetLevel(logging.ERROR | logging.WARN | logging.CRITICAL | logging.INFO)
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
@@ -36,11 +36,11 @@ func main() {
 	ht := new(hash_table.HashTablePlugin)
 	smp := new(simple.SimplePlugin)
 	ptree := new(ptree.PrefixTreePlugin)
-	sys := new(system.SystemPlugin)
+	builtin := new(builtin.BuiltinPlugin)
 	js := new(json.JSONPlugin)
 
 
-	database.RegisterPlugins(ht, smp, ptree, sys, js)
+	database.RegisterPlugins(ht, smp, ptree, builtin, js)
 
 
 

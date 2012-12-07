@@ -134,24 +134,21 @@ func HandlePGET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 }
 
 //magic number for prefix trees
-const T_PREFIX_TREE uint32 = 16
+const T_PREFIX_TREE = "PREFIX_TREE"
 
 
 //callback for the database to allocate a new prefix tree
-func (p *PrefixTreePlugin)CreateObject() *db.Entry {
+func (p *PrefixTreePlugin)CreateObject(command string) (*db.Entry, string) {
 
 	Root := newNode(0, 0)
 
-	//	//root.pos = 0
-	ret := &db.Entry{ Value: &PrefixTree{Root},
-		Type: T_PREFIX_TREE,
-	}
-	//fmt.Println("Created new hash table ", ret)
-	return ret
+	ret := &db.Entry{ Value: &PrefixTree{Root} }
+
+	return ret, T_PREFIX_TREE
 }
 
 // de-serialize callback (to be implemented...)
-func (p *PrefixTreePlugin)LoadObject(buf []byte, t uint32) *db.Entry {
+func (p *PrefixTreePlugin)LoadObject(buf []byte, t string) *db.Entry {
 	if t == T_PREFIX_TREE {
 
 		var pt PrefixTree
@@ -163,33 +160,52 @@ func (p *PrefixTreePlugin)LoadObject(buf []byte, t uint32) *db.Entry {
 			return nil
 		}
 
-		return &db.Entry{
-			Value: &pt,
-			Type: T_PREFIX_TREE,
-		}
+		return &db.Entry{  Value: &pt }
 
 	}
-	logging.Info("Invalid type %u. Could not deserialize", t)
+	logging.Info("Invalid type %s. Could not deserialize", t)
 	return nil
 }
 
 //the commands exposed by this plugin and their handlers
-func (p *PrefixTreePlugin)GetCommands() []db.CommandDescriptor {
+func (p *PrefixTreePlugin)GetManifest() db.PluginManifest {
 
+	return db.PluginManifest {
 
-	return []db.CommandDescriptor {
-		db.CommandDescriptor{"PSET", 2, HandlePSET, p, 0, db.CMD_WRITER},
-		db.CommandDescriptor{"PINCRBY", 2, HandlePINCRBY, p, 0, db.CMD_WRITER},
-		db.CommandDescriptor{"PSEARCH", 1, HandlePSEARCH, p, 0, db.CMD_READER},
-		db.CommandDescriptor{"PGET", 1, HandlePGET, p, 0, db.CMD_READER},
+		Name: "PREFIX_TREE",
 
+		Types: []string{T_PREFIX_TREE,},
+
+		Commands:  []db.CommandDescriptor {
+			db.CommandDescriptor{
+				CommandName: "PSET",
+				MinArgs: 2,	MaxArgs: 2,
+				Handler: HandlePSET,
+				CommandType: db.CMD_WRITER,
+			},
+			db.CommandDescriptor{
+				CommandName: "PINCRBY",
+				MinArgs: 2,	MaxArgs: 2,
+				Handler: HandlePINCRBY,
+				CommandType: db.CMD_WRITER,
+			},
+			db.CommandDescriptor{
+				CommandName: "PSEARCH",
+				MinArgs: 1,	MaxArgs: 1,
+				Handler: HandlePSEARCH,
+				CommandType: db.CMD_READER,
+			},
+			db.CommandDescriptor{
+				CommandName: "PGET",
+				MinArgs: 1,	MaxArgs: 1,
+				Handler: HandlePGET,
+				CommandType: db.CMD_READER,
+			},
+		},
 	}
+
 }
 
-
-func (p* PrefixTreePlugin) GetTypes() []uint32 {
-	return []uint32{T_PREFIX_TREE,}
-}
 
 func (p* PrefixTreePlugin) String() string {
 	return "PREFIX_TREE"

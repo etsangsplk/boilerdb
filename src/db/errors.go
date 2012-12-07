@@ -10,6 +10,7 @@ const (
 	E_BGSAVE_IN_PROGRESS int = 6
 	E_LOAD_IN_PROGRESS int = 7
 	E_PLUGIN_ERROR int = 8
+	E_TOO_MANY_PARAMS int = 9
 )
 
 
@@ -19,8 +20,10 @@ var errorCodes map[int]string = map[int]string {
 	E_TYPE_MISMATCH: "Type Mismatch",
 	E_INVALID_PARAMS: "Invalid parameters for call",
 	E_NOT_ENOUGH_PARAMS: "Not enough params for command",
+	E_TOO_MANY_PARAMS: "Too many params for command",
 	E_BGSAVE_IN_PROGRESS: "BGSAVE in progress",
 	E_LOAD_IN_PROGRESS: "LOAD in progress...",
+
 	//plugin error is no in the map...
 
 }
