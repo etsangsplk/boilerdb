@@ -7,9 +7,7 @@
  */
 package replication
 
-import (
-	"container/list"
-)
+import "container/list"
 
 
 const (

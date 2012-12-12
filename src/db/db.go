@@ -26,6 +26,10 @@ func NewResult(i interface{}) *Result {
 	return &Result{i}
 }
 
+func ResultOK() *Result{
+	return NewResult(NewStatus("OK"))
+}
+
 const (
 	T_NONE    uint32 = 0
 	T_STRING  uint32 = 1
@@ -445,7 +449,7 @@ func (db *DataBase) registerType(owner *IPlugin, name string) (uint8, error) {
 	//register the plugin as the owner of this type
 	db.pluginsByTypeId[typeId] = owner
 
-	logging.Info("Registerd plugin %s as the owner of type %s, mapped to id %d", owner, name, typeId)
+	logging.Info("Registerd plugin %s as the owner of type %s, mapped to id %d", *owner, name, typeId)
 
 	return typeId, nil
 }
@@ -467,7 +471,7 @@ func (db *DataBase) RegisterPlugins(plugins ...IPlugin) error {
 		//register the manifest plugins
 		for t := range manifest.Types {
 
-			logging.Info("Registering type %d to plugin %s", manifest.Types[t], plugin)
+			logging.Info("Registering type %s to plugin %s", manifest.Types[t], plugin)
 
 			_, err := db.registerType(&plugin, manifest.Types[t])
 			if err != nil {

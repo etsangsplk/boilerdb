@@ -1,5 +1,13 @@
-// The redis protocol adapter, currently the only adapter in town :)
-
+//The redis protocol adapter, currently the only adapter in town :)
+//
+//
+//It wraps the database and povides network access to it.
+//
+//We've made a great deal of effort decoupling the network layer from the database itself,
+//using channels to abstract streams for PubSub type scenarios.
+//
+//Writing other network protocols should be pretty trivial ;)
+//
 package redis
 
 
@@ -16,18 +24,16 @@ import (
 	"reflect"
 	"runtime/debug"
 	"strconv"
-
-//	"strings"
 )
+
 
 type RedisAdapter struct {
 	db         *db.DataBase
 	listener   net.Listener
 	numClients uint
 	isRunning  bool
-}
 
-var globalDict map[string][]byte = make(map[string][]byte)
+}
 
 func (r *RedisAdapter) Init(d *db.DataBase) {
 	r.db = d
@@ -44,19 +50,31 @@ func (r *RedisAdapter) Listen(addr net.Addr) error {
 	return nil
 }
 
-// Take a response as an abstract interface, and serialize it to the redis protocol
-// allowed response types are:
+// Take a response as an abstract interface, and serialize it to the redis protocol.
+//
+// Allowed response types are:
+//
+//
 // 1. Integers of all types
+//
 // 2. Strings
+//
 // 3. booleans (converted to strings)
+//
 // 4. db Status
+//
 // 5. db Error
+//
 // 6. db Command (serialized as string, for monitoring)
+//
 // 7. nil
+//
 // 8. []interface{} (serialized recursively)
+//
 // 9. map[string]interface{} (serialized recuresively)
+//
 // 10. float32/64 (serialized as string,)
-func (r *RedisAdapter) SerializeResponse(res interface{}, writer io.Writer) error {
+func SerializeResponse(res interface{}, writer io.Writer) error {
 
 
 
@@ -88,7 +106,7 @@ func (r *RedisAdapter) SerializeResponse(res interface{}, writer io.Writer) erro
 		writer.Write([]byte(fmt.Sprintf("*%d\r\n", l)))
 		//recursively serialize all entries in the list
 		for i := 0; i < l; i++ {
-			err := r.SerializeResponse(arr[i], writer )
+			err := SerializeResponse(arr[i], writer )
 			if err != nil {
 				logging.Panic("Could not serialize response: %s", err)
 			}
@@ -100,7 +118,28 @@ func (r *RedisAdapter) SerializeResponse(res interface{}, writer io.Writer) erro
 
 	case *db.Command:
 
-		writer.Write([]byte(fmt.Sprintf("+%s\r\n", res.(*db.Command).ToString())))
+		cmd := res.(*db.Command)
+
+		if cmd.Key != "" {
+			l := len(cmd.Args) + 2
+
+			writer.Write([]byte(fmt.Sprintf("*%d\r\n", l)))
+		}
+		writer.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(cmd.Command), cmd.Command)))
+
+		if cmd.Key == "" {
+			break
+		}
+
+		writer.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(cmd.Key), cmd.Key)))
+
+		//recursively serialize all entries in the list
+		for i := 0; i < len(cmd.Args); i++ {
+			err := SerializeResponse(string(cmd.Args[i]), writer )
+			if err != nil {
+				logging.Panic("Could not serialize response: %s", err)
+			}
+		}
 
 	case *db.Error:
 		e := res.(*db.Error)
@@ -116,7 +155,7 @@ func (r *RedisAdapter) SerializeResponse(res interface{}, writer io.Writer) erro
 		writer.Write([]byte(fmt.Sprintf("*%d\r\n", len(m)*2)))
 		for k, _ := range m {
 			writer.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(k), k)))
-			err := r.SerializeResponse(m[k], writer )
+			err := SerializeResponse(m[k], writer )
 			if err != nil {
 				log.Panic(err)
 			}
@@ -132,14 +171,17 @@ func (r *RedisAdapter) SerializeResponse(res interface{}, writer io.Writer) erro
 	return nil
 }
 
-// the connection handling loop. This gets called for each connection initialized
+// the connection handling loop.
+//
+// This gets called for each connection initialized
 func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 	var err error = nil
 
 	fp, _ := c.File()
 	_ = fp
-	reader := bufio.NewReaderSize(fp, 8192)
-	writer := bufio.NewWriter(fp)
+
+	reader := bufio.NewReaderSize(c, 32768)
+	writer := bufio.NewWriterSize(c, 32768)
 
 	session := r.db.NewSession(c.RemoteAddr())
 
@@ -176,9 +218,9 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 
 			msg := <-session.OutChan
 			if msg != nil {
-				r.SerializeResponse(msg.Value, writer)
+				SerializeResponse(msg.Value, writer)
 			} else {
-				r.SerializeResponse(nil, writer)
+				SerializeResponse(nil, writer)
 			}
 			err = writer.Flush()
 			if err != nil {
@@ -216,8 +258,10 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 }
 
 
-// Start the redis adapter and listen to its port
+// Start the redis adapter and listen to its port.
+//
 // Returns an error if something went wrong (usually the port is already taken...)
+//
 func (r *RedisAdapter) Start() error {
 	r.isRunning = true
 
@@ -244,13 +288,16 @@ func (r *RedisAdapter) Stop() error {
 	return nil
 }
 
+//
+// 	Return the name of the adapter
 func (r *RedisAdapter) Name() string {
 	return "Redis"
 }
 
+//
 // Read one request from the redis protocol
-// This is based on the client code of Go-redis
-// https://github.com/alphazero/Go-Redis
+//
+// This is based on the client code of Go-redis: https://github.com/alphazero/Go-Redis
 func ReadRequest(reader *bufio.Reader) (cmd *db.Command, err error) {
 	buf := readToCRLF(reader)
 
@@ -260,6 +307,7 @@ func ReadRequest(reader *bufio.Reader) (cmd *db.Command, err error) {
 			ll, err := strconv.Atoi(string(buf[1:]))
 			if err == nil {
 				res := readMultiBulkData(reader, ll)
+
 				if len(res) > 1 {
 					return &db.Command{Command: string(res[0]), Key: string(res[1]), Args: res[2:]}, nil
 
@@ -276,13 +324,11 @@ func ReadRequest(reader *bufio.Reader) (cmd *db.Command, err error) {
 	return nil, fmt.Errorf("Could not read line. buf is '%s'", buf)
 }
 
-
+// hard coded error to be detected upstream
 var ReadError = errors.New("Error Reading from Client")
-/////////////////////////////////////////////////////////////////////////////
-//
+
 // Everything below is taken from https://github.com/alphazero/Go-Redis
-//
-/////////////////////////////////////////////////////////////////////////////
+
 
 
 // panics on error (with redis.Error)
@@ -327,12 +373,16 @@ const (
 )
 
 func readToCRLF(r *bufio.Reader) []byte {
-	//	var buf []byte
-	buf, e := r.ReadBytes(cr_byte)
+	//var buf []byte
+
+
+	buf, _, e := r.ReadLine()
 	if e != nil {
 		logging.Info("Error: %s", e)
 		panic(ReadError)
 	}
+
+	return buf
 
 	var b byte
 	b, e = r.ReadByte()

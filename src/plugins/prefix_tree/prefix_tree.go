@@ -133,7 +133,7 @@ func HandlePGET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 	return r
 }
 
-//magic number for prefix trees
+//identifier for prefix tree
 const T_PREFIX_TREE = "PREFIX_TREE"
 
 
@@ -191,7 +191,7 @@ func (p *PrefixTreePlugin)GetManifest() db.PluginManifest {
 			},
 			db.CommandDescriptor{
 				CommandName: "PSEARCH",
-				MinArgs: 1,	MaxArgs: 1,
+				MinArgs: 1,	MaxArgs: 2,
 				Handler: HandlePSEARCH,
 				CommandType: db.CMD_READER,
 			},

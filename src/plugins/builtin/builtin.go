@@ -61,6 +61,42 @@ func HandleMONITOR(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Re
 	return db.NewResult(db.NewStatus("OK"))
 }
 
+func HandleSYNC(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
+
+
+	sink := db.DB.AddSink(
+				db.CMD_WRITER,
+				session.Id())
+
+	go func() {
+
+		defer func(){
+			e := recover()
+			if e != nil {
+				logging.Info("Could not send command to session outchan: %s", e)
+				sink.Close()
+			}
+
+		}()
+
+		for session.IsRunning {
+
+			cmd := <- sink.Channel
+
+			if cmd != nil {
+
+				if session.OutChan != nil {
+					session.OutChan <- db.NewResult(cmd)
+				}
+			}
+
+		}
+		//sink.Close()
+	}()
+	return db.NewResult(db.NewStatus("OK"))
+}
+
+
 // perform BGSAVE - save the DB returning immediately
 func HandleBGSAVE(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 
@@ -202,6 +238,12 @@ func (p *BuiltinPlugin)GetManifest() db.PluginManifest {
 				CommandName: "MONITOR",
 				MinArgs: 0,	MaxArgs: 0,
 				Handler: HandleMONITOR,
+				CommandType: db.CMD_SYSTEM,
+			},
+			db.CommandDescriptor{
+				CommandName: "SYNC",
+				MinArgs: 0,	MaxArgs: 0,
+				Handler: HandleSYNC,
 				CommandType: db.CMD_SYSTEM,
 			},
 		},

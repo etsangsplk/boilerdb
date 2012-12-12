@@ -18,6 +18,7 @@ import (
 	simple "plugins/simple"
 	builtin "plugins/builtin"
 	json "plugins/json"
+	"plugins/slave"
 	"runtime"
 
 )
@@ -38,9 +39,10 @@ func main() {
 	ptree := new(ptree.PrefixTreePlugin)
 	builtin := new(builtin.BuiltinPlugin)
 	js := new(json.JSONPlugin)
+	sl := new(slave.SlavePlugin      )
 
 
-	database.RegisterPlugins(ht, smp, ptree, builtin, js)
+	database.RegisterPlugins(ht, smp, ptree, builtin, js, sl)
 
 
 
@@ -52,7 +54,7 @@ func main() {
 
 		adap.Init(database)
 		adap.Name()
-		addr, _ := net.ResolveTCPAddr("tcp", "0.0.0.0:2000")
+		addr, _ := net.ResolveTCPAddr("tcp", "0.0.0.0:2001")
 		err := adap.Listen(addr)
 
 		if err != nil {

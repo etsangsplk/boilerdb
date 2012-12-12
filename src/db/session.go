@@ -54,6 +54,7 @@ func (s *Session) Run() {
 
 		if cmd != nil {
 
+			//we put another function here to sandbox the errors that may arise from handling the command itself
 			func() {
 				defer func() {
 					e := recover()
