@@ -1,4 +1,3 @@
-
 package db
 
 import (
@@ -15,18 +14,17 @@ import (
 	"sync"
 	"time"
 	"util"
-
 )
 
 type Result struct {
-	Value interface {}
+	Value interface{}
 }
 
 func NewResult(i interface{}) *Result {
 	return &Result{i}
 }
 
-func ResultOK() *Result{
+func ResultOK() *Result {
 	return NewResult(NewStatus("OK"))
 }
 
@@ -70,33 +68,32 @@ const (
 type CommandDescriptor struct {
 	CommandName string
 	//used to validate/parse query format. e.g. "<key> <*> <int> [LIMIT <%d> <%d>]" => /(\s) (\s) ([[:num]]+) (LIMIT ([[:num]]+) ([[:num]]+))?
-	MinArgs       int
-	MaxArgs		  int
-	Handler       HandlerFunc
-	Owner         IPlugin
+	MinArgs int
+	MaxArgs int
+	Handler HandlerFunc
+	Owner   IPlugin
 
 	//whether the command is a reader, writer or builtin command
-	CommandType   int
+	CommandType int
+	Help        string
 }
 
 type PluginManifest struct {
-
-	Name string
-	Commands []CommandDescriptor
-	Types []string
-
+	Name        string
+	Description string
+	Commands    []CommandDescriptor
+	Types       []string
 }
-
 
 //The API for an abstract plugin, that creates data structs and registers handlers
 type IPlugin interface {
 	CreateObject(commandName string) (*Entry, string)
 
 	GetManifest() PluginManifest
-//		GetCommands() []CommandDescriptor
-//
-//	GetTypes() []uint32
-//
+	//		GetCommands() []CommandDescriptor
+	//
+	//	GetTypes() []uint32
+	//
 	LoadObject([]byte, string) *Entry
 
 	//used to identify the plugin as a string, for the %s formatting...
@@ -106,7 +103,7 @@ type IPlugin interface {
 ////////////////////////////////////////////////////////////
 // Command Sink
 // Sinks are subscribers to commands sent to the database.
-// e.g. a slave or active monitor
+// e.g. a replication or active monitor
 ////////////////////////////////////////////////////////////
 type CommandSink struct {
 	Channel     chan *Command
@@ -142,6 +139,7 @@ func (s *CommandSink) PushCommand(cmd *Command) {
 func (s *CommandSink) Close() {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+
 	if s.Channel != nil {
 		close(s.Channel)
 	}
@@ -155,7 +153,7 @@ func (s *CommandSink) Close() {
 type DataBase struct {
 
 	//the command registrry
-	commands   map[string]*CommandDescriptor
+	commands map[string]*CommandDescriptor
 
 	//the main dictionary
 	dictionary map[string]*Entry
@@ -164,10 +162,10 @@ type DataBase struct {
 	lockedKeys map[string]*KeyLock
 
 	//global dictionary lock
-	dictLock   sync.Mutex
+	dictLock sync.Mutex
 
 	//global save lock used to stop all running processes when saving a snapshot in blocking mode
-	saveLock   sync.RWMutex
+	saveLock sync.RWMutex
 
 	// type registry.
 	// each type is externally represented as a string, but internally mapped to an id between 0 and 255
@@ -176,11 +174,11 @@ type DataBase struct {
 	//this is the incremental type id counter that increases with each type registering
 	maxTypeId uint8
 	// for each type id, we know the "owner" plugin if we need to deserialize or create a new object of that typ
-	pluginsByTypeId  map[uint8]*IPlugin
+	pluginsByTypeId map[uint8]*IPlugin
 	// mapping of type names to ids
-	typeNamesToIds	map[string]uint8
+	typeNamesToIds map[string]uint8
 	// mapping of type ids back to names
-	typeIdsToNames	map[uint8]string
+	typeIdsToNames map[uint8]string
 
 	//save status
 	currentSaveId        uint8
@@ -223,20 +221,20 @@ type KeyLock struct {
 func InitGlobalDataBase() *DataBase {
 	DB = &DataBase{
 
-		commands:      make(map[string]*CommandDescriptor),
-		dictionary:    make(map[string]*Entry),
-		lockedKeys:    make(map[string]*KeyLock),
-		dictLock:      sync.Mutex{},
-		saveLock:      sync.RWMutex{},
-		pluginsByTypeId:	make(map[uint8]*IPlugin),
-		typeIdsToNames: make(map[uint8]string),
-		typeNamesToIds: make(map[string]uint8),
-		maxTypeId: 	   0,
-		currentSaveId: 0,
-		commandSinks:  make(map[string]*CommandSink),
-		sinkChan:      make(chan *Command, 10),
-		expiredKeys:   make(map[string]time.Time),
-		LastSaveTime:  time.Now(),
+		commands:        make(map[string]*CommandDescriptor),
+		dictionary:      make(map[string]*Entry),
+		lockedKeys:      make(map[string]*KeyLock),
+		dictLock:        sync.Mutex{},
+		saveLock:        sync.RWMutex{},
+		pluginsByTypeId: make(map[uint8]*IPlugin),
+		typeIdsToNames:  make(map[uint8]string),
+		typeNamesToIds:  make(map[string]uint8),
+		maxTypeId:       0,
+		currentSaveId:   0,
+		commandSinks:    make(map[string]*CommandSink),
+		sinkChan:        make(chan *Command, 10),
+		expiredKeys:     make(map[string]time.Time),
+		LastSaveTime:    time.Now(),
 	}
 	DB.Running.Set(true)
 	//start the goroutines for dispatching to sinks and for dump loading
@@ -266,6 +264,7 @@ func (db *DataBase) Size() int {
 func (db *DataBase) Lockdown() {
 	db.saveLock.RUnlock()
 	db.saveLock.Lock()
+
 }
 
 // release the full lockdown lock of the databse
@@ -309,7 +308,7 @@ func (db *DataBase) SetExpire(key string, entry *Entry, when time.Time) bool {
 
 //get the mode of a command (writer /reader / builtin)
 //return the mode identifier or 0 if none is found
-func (db *DataBase) CommandType (cmd string) int {
+func (db *DataBase) CommandType(cmd string) int {
 
 	commandDesc := db.commands[cmd]
 	if commandDesc != nil {
@@ -317,8 +316,6 @@ func (db *DataBase) CommandType (cmd string) int {
 	}
 	return 0
 }
-
-
 
 //create and add a sink to the database, returning it to the caller
 func (db *DataBase) AddSink(flags int, id string) *CommandSink {
@@ -417,9 +414,7 @@ func (db *DataBase) UnlockKey(key string, mode int) {
 
 }
 
-
 func (db *DataBase) registerType(owner *IPlugin, name string) (uint8, error) {
-
 
 	// lock the dictionary just to make sure no one else is registering a type at the same time.
 	// It shouldn't happen as the database is not started yet, but just in case... :)
@@ -454,7 +449,7 @@ func (db *DataBase) registerType(owner *IPlugin, name string) (uint8, error) {
 	return typeId, nil
 }
 
-func (db *DataBase)GetTypeId(typeName string) uint8 {
+func (db *DataBase) GetTypeId(typeName string) uint8 {
 	return db.typeNamesToIds[typeName]
 }
 
@@ -481,7 +476,6 @@ func (db *DataBase) RegisterPlugins(plugins ...IPlugin) error {
 
 		}
 
-
 		for j := range manifest.Commands {
 
 			manifest.Commands[j].Owner = plugin
@@ -490,7 +484,6 @@ func (db *DataBase) RegisterPlugins(plugins ...IPlugin) error {
 			db.registerCommand(manifest.Commands[j])
 
 		}
-
 
 	}
 	logging.Info("Registered %d plugins and %d commands\n", len(plugins), totalCommands)
@@ -536,14 +529,12 @@ func (db *DataBase) HandleCommand(cmd *Command, session *Session) (*Result, erro
 
 	if commandDesc.MaxArgs < len(cmd.Args) {
 		return NewResult(&Error{E_TOO_MANY_PARAMS}),
-		fmt.Errorf("Expected at most %d params for command %s, got %d",
-			commandDesc.MaxArgs,
-			cmd.Command,
-			len(cmd.Args))
+			fmt.Errorf("Expected at most %d params for command %s, got %d",
+				commandDesc.MaxArgs,
+				cmd.Command,
+				len(cmd.Args))
 
 	}
-
-
 
 	var ret *Result = nil
 
@@ -596,7 +587,6 @@ func (db *DataBase) HandleCommand(cmd *Command, session *Session) (*Result, erro
 			db.LockKey(cmd.Key, commandDesc.CommandType)
 			defer db.UnlockKey(cmd.Key, commandDesc.CommandType)
 
-
 			//we need to persist this entry to the temp persist dictionary! it is about to be persisted
 			if commandDesc.CommandType == CMD_WRITER &&
 				db.BGsaveInProgress.IsSet() && entry.saveId != db.currentSaveId {
@@ -643,7 +633,7 @@ func (db *DataBase) multiplexCommandsToSinks() {
 		for i := range db.commandSinks {
 
 			sink, ok := db.commandSinks[i]
-			if ok && (sink.CommandType & db.CommandType(cmd.Command)) != 0 {
+			if ok && (sink.CommandType&db.CommandType(cmd.Command)) != 0 {
 				sink.PushCommand(cmd)
 
 			}

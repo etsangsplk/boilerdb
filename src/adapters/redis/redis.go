@@ -46,6 +46,7 @@ func (r *RedisAdapter) Listen(addr net.Addr) error {
 		return err
 	}
 
+	logging.Info("Redis adapter listening on %s", addr)
 	r.listener = listener
 	return nil
 }

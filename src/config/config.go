@@ -30,6 +30,9 @@ var (
 	// set to 0 for no saving
 	// setting the value too low will cause us to try the next time, no biggie
 	BGSAVE_SECONDS = 120
+
+	// The listening port of the database
+	LISTEN_PORT = 2000
 )
 
 func init() {

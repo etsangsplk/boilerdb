@@ -143,6 +143,7 @@ func (p *JSONPlugin)GetManifest() db.PluginManifest {
 	return db.PluginManifest {
 
 		Name: "JSON",
+		Description: "A JSON Object store that allows direct getting and setting of values inside a JSON object, without serialization",
 
 		Commands:  []db.CommandDescriptor {
 			db.CommandDescriptor{
@@ -150,18 +151,21 @@ func (p *JSONPlugin)GetManifest() db.PluginManifest {
 				MinArgs: 2,	MaxArgs: 2,
 				Handler: HandleJSET,
 				CommandType: db.CMD_WRITER,
+				Help: "JSET [key] [json path] [value]: Set the value of a given node in a JSON object. Use '.' as the path for setting the entire object",
 			},
 			db.CommandDescriptor{
 				CommandName: "JGET",
 				MinArgs: 0,	MaxArgs: 0,
 				Handler: HandleJGET,
 				CommandType: db.CMD_READER,
+				Help: "JGET [key] Dump the entire contents of a JSON object",
 			},
 			db.CommandDescriptor{
 				CommandName: "JQUERY",
 				MinArgs: 1,	MaxArgs: 1,
 				Handler: HandleJQUERY,
 				CommandType: db.CMD_READER,
+				Help: "JQUERY [key] [json path]: Get the value of a given node in a JSON object. Use '.' as the path for the root",
 			},
 
 		},

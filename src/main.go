@@ -11,16 +11,18 @@ import (
 	redis_adapter "adapters/redis"
 	"db"
 	"logging"
+	"flag"
+	"fmt"
 
 	"net"
+	builtin "plugins/builtin"
 	hash_table "plugins/hash_table"
+	json "plugins/json"
 	ptree "plugins/prefix_tree"
 	simple "plugins/simple"
-	builtin "plugins/builtin"
-	json "plugins/json"
-	"plugins/slave"
+	repl "plugins/replication"
 	"runtime"
-
+	"config"
 )
 
 ///////////////////////////////////////////////////
@@ -35,26 +37,27 @@ func main() {
 
 	///Register all the plugins
 	ht := new(hash_table.HashTablePlugin)
+
 	smp := new(simple.SimplePlugin)
+
 	ptree := new(ptree.PrefixTreePlugin)
 	builtin := new(builtin.BuiltinPlugin)
 	js := new(json.JSONPlugin)
-	sl := new(slave.SlavePlugin      )
+	rep := new(repl.ReplicationPlugin)
 
+	port := flag.Int("port", config.LISTEN_PORT, "Listening port" )
+	flag.Parse()
 
-	database.RegisterPlugins(ht, smp, ptree, builtin, js, sl)
-
-
+	database.RegisterPlugins(ht, smp, ptree, builtin, js, rep)
 
 	//
-
 
 	if true {
 		adap := redis_adapter.RedisAdapter{}
 
 		adap.Init(database)
 		adap.Name()
-		addr, _ := net.ResolveTCPAddr("tcp", "0.0.0.0:2001")
+		addr, _ := net.ResolveTCPAddr("tcp", fmt.Sprintf("0.0.0.0:%d", *port))
 		err := adap.Listen(addr)
 
 		if err != nil {
