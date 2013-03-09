@@ -33,6 +33,8 @@ var (
 
 	// The listening port of the database
 	LISTEN_PORT = 2000
+
+	MAX_SYNC_RETRIES = 5
 )
 
 func init() {

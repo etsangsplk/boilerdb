@@ -74,7 +74,7 @@ func HandleBGSAVE(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Res
 	go func() {
 		fmt.Printf("Starting bgsave...")
 		//now dump the db
-		_, _ = db.DB.Dump()
+		_ = db.DB.Dump()
 		fmt.Println("Finished saving!")
 	}()
 	return db.NewResult(db.NewStatus("OK"))
@@ -87,7 +87,7 @@ func HandleSAVE(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 	db.DB.Lockdown()
 	defer func() { db.DB.UNLockdown() }()
 
-	_, err := db.DB.Dump()
+	err := db.DB.Dump()
 
 	if err == nil {
 		return db.NewResult(db.NewStatus("OK"))

@@ -11,13 +11,15 @@ import (
 	"strings"
 	"bytes"
 	"bufio"
+	"encoding/gob"
 
 )
 
 const (
 	STATE_OFFLINE = 0
-	STATE_SYNCING = 1
-	STATE_LIVE = 2
+	STATE_PENDING_SYNC = 1
+	STATE_SYNC_IN_PROGRESS = 2
+	STATE_LIVE = 3
 )
 
 
@@ -28,6 +30,9 @@ type Master struct {
 	Host string
 	Port int
 	Conn net.Conn
+	decoder *gob.Decoder
+	reader *bufio.ReadWriter
+
 
 }
 
@@ -52,7 +57,7 @@ func (m *Master)Connect() error {
 	}
 	m.Conn = conn
 	//set the state to "pending sync"
-	m.State = STATE_SYNCING
+	m.State = STATE_PENDING_SYNC
 	logging.Info("Successfuly connected to master %s", m)
 	return nil
 }
@@ -154,6 +159,7 @@ func connectToMaster(host string, port int) error {
 		Host: host,
 		Port: port,
 		State: STATE_OFFLINE,
+		decoder: nil,
 	}
 
 	err := m.Connect()
@@ -165,6 +171,46 @@ func connectToMaster(host string, port int) error {
 	}
 
 	go currentMaster.RunReplication()
+
+
+	return nil
+}
+
+
+
+func (m *Master) ReadValue(buf []byte) {
+
+
+	if m.decoder == nil {
+
+		m.decoder = gob.NewDecoder(m.reader)
+	}
+
+	m.reader.Writer.Write(buf)
+
+	var se db.SerializedEntry
+	err := m.decoder.Decode(&se)
+	if err == nil {
+
+		fmt.Println(se)
+		db.DB.LoadSerializedEntry(&se)
+
+	}
+
+
+}
+
+
+
+func HandleLOAD(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
+
+	if currentMaster == nil {
+		logging.Error("Got load while not connected to a master!")
+		return db.NewResult(db.NewError(db.E_PLUGIN_ERROR))
+	}
+
+
+	currentMaster.ReadValue(cmd.Args[0])
 
 
 	return nil
@@ -202,4 +248,5 @@ func HandleSLAVEOF(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Re
 
 	return db.ResultOK()
 }
+
 

@@ -379,7 +379,7 @@ func readToCRLF(r *bufio.Reader) []byte {
 
 	buf, _, e := r.ReadLine()
 	if e != nil {
-		logging.Info("Error: %s", e)
+		logging.Warning("Error reading to crlf: %s", e)
 		panic(ReadError)
 	}
 

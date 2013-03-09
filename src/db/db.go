@@ -662,19 +662,64 @@ func (db *DataBase) serializeEntry(entry *Entry, k string) (*SerializedEntry, er
 }
 
 //dump the database to disk, in a non blocking mode
-func (db *DataBase) Dump() (int64, error) {
+func (db *DataBase) Dump() (error) {
 
 	if db.DataLoadInProgress.IsSet() {
 		logging.Debug("Data Load In Progress!")
-		return 0, fmt.Errorf("LOAD in progress")
+		return fmt.Errorf("LOAD in progress")
 	}
 
 	currentlySaving := db.BGsaveInProgress.GetSet(true)
 	if currentlySaving {
 		logging.Debug("BGSave in progress")
-		return 0, fmt.Errorf("BGSave in progress")
+		return fmt.Errorf("BGSave in progress")
 	}
 
+	//make sure we release the save flag
+	defer func() { db.BGsaveInProgress.Set(false) }()
+
+	startTime := time.Now()
+	logging.Info("Starting BGSAVE...")
+	//open the dump file for writing
+	fp, err := os.Create(fmt.Sprintf("%s/%s", config.WORKING_DIRECTORY, "dump.bdb"))
+	if err != nil {
+		logging.Error("Could not save to file: %s", err)
+		return err
+	}
+	defer fp.Close()
+
+	err = db.DumpToWriter(fp, false)
+	if err != nil {
+	 	logging.Error("Could not dump database: %s", err)
+		return err
+	}
+
+	db.changesSinceLastSave = 0
+	db.LastSaveTime = time.Now()
+	logging.Info("Finished BGSAVE in %s", time.Now().Sub(startTime))
+	return nil
+}
+
+
+//dump the database to a writer, in a non blocking mode
+// NOTE: this function assumes you've done the proper locking elsewhere
+func (db *DataBase) DumpToWriter(writer io.Writer, doLock bool) (error) {
+
+	if doLock {
+		if db.DataLoadInProgress.IsSet() {
+			logging.Debug("Data Load In Progress!")
+			return fmt.Errorf("LOAD in progress")
+		}
+
+		currentlySaving := db.BGsaveInProgress.GetSet(true)
+		if currentlySaving {
+			logging.Debug("BGSave in progress")
+			return fmt.Errorf("BGSave in progress")
+		}
+
+		//make sure we release the save flag
+		defer func() { db.BGsaveInProgress.Set(false) }()
+	}
 	db.dictLock.Lock()
 
 	db.bgsaveTempKeys = make(map[string]*SerializedEntry)
@@ -684,18 +729,7 @@ func (db *DataBase) Dump() (int64, error) {
 
 	startTime := time.Now()
 
-	//make sure we release the save flag
-	defer func() { db.BGsaveInProgress.Set(false) }()
-
-	logging.Info("Starting BGSAVE...")
-	//open the dump file for writing
-	fp, err := os.Create(fmt.Sprintf("%s/%s", config.WORKING_DIRECTORY, "dump.bdb"))
-	if err != nil {
-		logging.Error("Could not save to file: %s", err)
-		return 0, err
-	}
-
-	globalEnc := gob.NewEncoder(fp)
+	globalEnc := gob.NewEncoder(writer)
 
 	for k := range db.dictionary {
 
@@ -732,13 +766,32 @@ func (db *DataBase) Dump() (int64, error) {
 	}
 	//TODO: iterate the temp dictionary for deleted keys
 
-	fp.Close()
-	db.changesSinceLastSave = 0
-	db.LastSaveTime = time.Now()
-	logging.Info("Finished BGSAVE in %s", time.Now().Sub(startTime))
-	return 0, nil
+	logging.Info("Finished Dump in %s", time.Now().Sub(startTime))
+	return  nil
 }
 
+func (db *DataBase) LoadSerializedEntry(se *SerializedEntry) error {
+
+
+	typeId, ok := db.typeNamesToIds[se.Type]
+	if !ok {
+		logging.Critical("Could not find a plugin for type %s", typeId)
+		return nil
+	}
+	creator := db.pluginsByTypeId[typeId]
+	if creator == nil {
+		logging.Panic("Got invalid serializer type %d", se.Type)
+	}
+
+	entry := (*creator).LoadObject(se.Bytes, se.Type)
+	entry.TypeId = db.GetTypeId(se.Type)
+	if entry != nil {
+		db.dictionary[se.Key] = entry
+
+	}
+
+	return nil
+}
 // Load the database from a dump file, as specified in the config file
 // This disallows commands during load
 func (db *DataBase) LoadDump() error {
@@ -761,6 +814,8 @@ func (db *DataBase) LoadDump() error {
 	db.saveLock.RLock()
 	defer db.saveLock.RUnlock()
 
+
+
 	dec := gob.NewDecoder(fp)
 	var se SerializedEntry
 
@@ -769,21 +824,9 @@ func (db *DataBase) LoadDump() error {
 		err = dec.Decode(&se)
 
 		if err == nil {
+			err = db.LoadSerializedEntry(&se)
 
-			typeId, ok := db.typeNamesToIds[se.Type]
-			if !ok {
-				logging.Critical("Could not find a plugin for type %s", typeId)
-				continue
-			}
-			creator := db.pluginsByTypeId[typeId]
-			if creator == nil {
-				logging.Panic("Got invalid serializer type %d", se.Type)
-			}
-
-			entry := (*creator).LoadObject(se.Bytes, se.Type)
-			entry.TypeId = db.GetTypeId(se.Type)
-			if entry != nil {
-				db.dictionary[se.Key] = entry
+			if err == nil {
 				nLoaded++
 				if nLoaded%10000 == 0 {
 					logging.Info("Loaded %d objects from dump", nLoaded)
@@ -796,3 +839,5 @@ func (db *DataBase) LoadDump() error {
 	logging.Info("Finished dump load. Loaded %d objects from dump", nLoaded)
 	return nil
 }
+
+

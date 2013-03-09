@@ -47,6 +47,12 @@ Types: []string{},
 			Handler: HandleSYNC,
 			CommandType: db.CMD_SYSTEM,
 		},
+		db.CommandDescriptor{
+			CommandName: "LOAD",
+			MinArgs: 1,	MaxArgs: 1,
+			Handler: HandleLOAD,
+			CommandType: db.CMD_SYSTEM,
+		},
 	},
 }
 }
