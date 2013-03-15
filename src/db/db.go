@@ -152,6 +152,8 @@ func (s *CommandSink) Close() {
 //
 type DataBase struct {
 
+
+	WorkingDirectory string
 	//the command registrry
 	commands map[string]*CommandDescriptor
 
@@ -218,9 +220,11 @@ type KeyLock struct {
 }
 
 // create the global database and initialize it
-func InitGlobalDataBase() *DataBase {
+func InitGlobalDataBase(workingDir string) *DataBase {
+	logging.Info("Starting database in working directory %s", workingDir)
 	DB = &DataBase{
 
+		WorkingDirectory: workingDir,
 		commands:        make(map[string]*CommandDescriptor),
 		dictionary:      make(map[string]*Entry),
 		lockedKeys:      make(map[string]*KeyLock),
@@ -678,17 +682,54 @@ func (db *DataBase) Dump() (error) {
 	//make sure we release the save flag
 	defer func() { db.BGsaveInProgress.Set(false) }()
 
+
 	startTime := time.Now()
 	logging.Info("Starting BGSAVE...")
 	//open the dump file for writing
-	fp, err := os.Create(fmt.Sprintf("%s/%s", config.WORKING_DIRECTORY, "dump.bdb"))
+	fp, err := os.Create(fmt.Sprintf("%s/%s",db.WorkingDirectory, "dump.bdb"))
 	if err != nil {
 		logging.Error("Could not save to file: %s", err)
 		return err
 	}
 	defer fp.Close()
 
-	err = db.DumpToWriter(fp, false)
+	ch := make(chan *SerializedEntry)
+	globalEnc := gob.NewEncoder(fp)
+	inProgress := true
+
+	//this function reads back from the channel each serialized entry, and sends it to the file writer
+	go func(inProgress *bool) {
+		defer func() {
+		   e := recover()
+			if e != nil {
+				logging.Warning("Error while dumping: %s", e)
+			}
+		}()
+
+		var se *SerializedEntry
+		for *inProgress {
+
+			//read a serialized entry
+			se = <- ch
+
+			logging.Debug("Read entry %s", se.Key)
+			if se != nil {
+				//encode it
+				e:= globalEnc.Encode(se)
+				if e != nil {
+					logging.Warning("Error serializing enty: %s", e)
+				}
+			}   else {
+				break
+			}
+		}
+
+		logging.Info("Finished writing to encoder")
+	}(&inProgress)
+
+	err = db.DumpEntries(ch, false)
+	inProgress = false
+	close(ch)
 	if err != nil {
 	 	logging.Error("Could not dump database: %s", err)
 		return err
@@ -703,7 +744,7 @@ func (db *DataBase) Dump() (error) {
 
 //dump the database to a writer, in a non blocking mode
 // NOTE: this function assumes you've done the proper locking elsewhere
-func (db *DataBase) DumpToWriter(writer io.Writer, doLock bool) (error) {
+func (db *DataBase) DumpEntries(dumpChan chan *SerializedEntry, doLock bool) (error) {
 
 	if doLock {
 		if db.DataLoadInProgress.IsSet() {
@@ -729,7 +770,6 @@ func (db *DataBase) DumpToWriter(writer io.Writer, doLock bool) (error) {
 
 	startTime := time.Now()
 
-	globalEnc := gob.NewEncoder(writer)
 
 	for k := range db.dictionary {
 
@@ -737,7 +777,8 @@ func (db *DataBase) DumpToWriter(writer io.Writer, doLock bool) (error) {
 		//try to save from temp dict
 		tmpSE := db.bgsaveTempKeys[k]
 		if tmpSE != nil {
-			globalEnc.Encode(tmpSE)
+
+			dumpChan <- tmpSE
 			delete(db.bgsaveTempKeys, k)
 			db.UnlockKey(k, CMD_WRITER)
 			continue
@@ -761,7 +802,8 @@ func (db *DataBase) DumpToWriter(writer io.Writer, doLock bool) (error) {
 			logging.Info("Could not serialize entry %s: %s", entry, err)
 			continue
 		}
-		globalEnc.Encode(serialized)
+		dumpChan  <- serialized
+
 
 	}
 	//TODO: iterate the temp dictionary for deleted keys
@@ -785,6 +827,8 @@ func (db *DataBase) LoadSerializedEntry(se *SerializedEntry) error {
 
 	entry := (*creator).LoadObject(se.Bytes, se.Type)
 	entry.TypeId = db.GetTypeId(se.Type)
+
+	logging.Info("Created entry %s, registering", *entry)
 	if entry != nil {
 		db.dictionary[se.Key] = entry
 
@@ -805,7 +849,7 @@ func (db *DataBase) LoadDump() error {
 
 	defer func() { db.DataLoadInProgress.Set(false) }()
 
-	fp, err := os.Open(fmt.Sprintf("%s/%s", config.WORKING_DIRECTORY, "dump.bdb"))
+	fp, err := os.Open(fmt.Sprintf("%s/%s", db.WorkingDirectory, "dump.bdb"))
 	if err != nil {
 		logging.Error("Could not load file: %s", err)
 		return err

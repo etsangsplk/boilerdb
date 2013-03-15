@@ -13,6 +13,7 @@ import (
 	"bufio"
 	"encoding/gob"
 
+
 )
 
 const (
@@ -93,11 +94,14 @@ func (m *Master)RunReplication()  {
 	for m.State != STATE_OFFLINE {
 		//read an parse the request
 		cmd, _ := redis.ReadRequest(reader)
+
 		if cmd.Command != "OK" {
 
-			fmt.Println(cmd.ToString())
 
-			_, _ = db.DB.HandleCommand(cmd, mockSession)
+			_, er := db.DB.HandleCommand(cmd, mockSession)
+			if er != nil {
+				logging.Warning("Error handling command: %s", er)
+			}
 		}
 
 
@@ -209,9 +213,24 @@ func HandleLOAD(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 		return db.NewResult(db.NewError(db.E_PLUGIN_ERROR))
 	}
 
+	l, e := strconv.Atoi(string(cmd.Args[1]))
+	if e != nil {
+		logging.Error("Could not read entry len: %s", e)
+		return nil
+	}
 
-	currentMaster.ReadValue(cmd.Args[0])
+	var se db.SerializedEntry = db.SerializedEntry{
+		Key: cmd.Key,
+		Type: string(cmd.Args[0]),
+		Len: uint64(l),
+		Bytes: cmd.Args[2],
+	}
 
+	err := db.DB.LoadSerializedEntry(&se)
+	if err != nil {
+
+		logging.Error("Error loading entry: %s", e)
+	}
 
 	return nil
 }

@@ -15,7 +15,7 @@ import (
 	"logging"
 	"errors"
 //	"strconv"
-//	"fmt"
+	"fmt"
 //	"strings"
 //	"bytes"
 //	"bufio"
@@ -67,22 +67,21 @@ func NewSlave(session *db.Session) *Slave {
 
 
 // The slave implements the io.writer interface so it can be sent directly to the database for dumping a complete SYNC
-func (s *Slave)Write(p []byte) (n int, err error) {
+func (s *Slave)Send(se *db.SerializedEntry) error {
 
 	//we assume what we get here is a gobbed object.
 	//We don't verify currently that this is indeed the case
 
 	cmd := &db.Command{
 		Command: "LOAD",
-		Key: "*",
-		Args: [][]byte{p},
+		Key: se.Key,
+		Args: [][]byte{[]byte(se.Type), []byte(fmt.Sprintf("%d", se.Len)), se.Bytes},
 	}
-
 
 
 	s.session.OutChan <- db.NewResult(cmd)
 
-	return len(p), nil
+	return nil
 
 
 }
@@ -100,8 +99,42 @@ func (s *Slave) Sync() error {
 	logging.Info("Starting sync for slave %s", s)
 	numRetries := 0
 
+
+
 	for numRetries < config.MAX_SYNC_RETRIES {
-		err := db.DB.DumpToWriter(s, true)
+		ch := make(chan *db.SerializedEntry)
+		go func() {
+			defer func() {
+				e := recover()
+				if e != nil {
+					logging.Warning("Error while dumping: %s", e)
+				}
+			}()
+
+			var se *db.SerializedEntry
+			for {
+
+				//read a serialized entry
+				se = <- ch
+
+				logging.Debug("Read entry %s", se.Key)
+				if se != nil {
+					//encode it
+
+					e := s.Send(se)
+					if e != nil {
+						logging.Warning("Error serializing enty: %s", e)
+					}
+				} else {
+					break
+				}
+			}
+
+			logging.Info("Finished writing to slave")
+		}()
+
+		err := db.DB.DumpEntries(ch, true)
+		close(ch)
 		if err != nil {
 			logging.Warning("Failed to sync slave: %s", err)
 			numRetries++

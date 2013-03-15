@@ -33,7 +33,7 @@ func main() {
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	database := db.InitGlobalDataBase()
+
 
 	///Register all the plugins
 	ht := new(hash_table.HashTablePlugin)
@@ -45,8 +45,11 @@ func main() {
 	js := new(json.JSONPlugin)
 	rep := new(repl.ReplicationPlugin)
 
+	workingDir := flag.String("dir", config.WORKING_DIRECTORY, "Database working directory")
 	port := flag.Int("port", config.LISTEN_PORT, "Listening port" )
+
 	flag.Parse()
+	database := db.InitGlobalDataBase(*workingDir)
 
 	database.RegisterPlugins(ht, smp, ptree, builtin, js, rep)
 
