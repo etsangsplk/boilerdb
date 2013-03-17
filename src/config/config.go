@@ -19,8 +19,8 @@ var (
 	WORKING_DIRECTORY     = "/tmp"
 
 	//the buffer on the input and output channels of sessions
-	IN_CHAN_BUFSIZE   int = 10
-	OUT_CHAN_BUFSIZE  int = 5
+	IN_CHAN_BUFSIZE   int = 100
+	OUT_CHAN_BUFSIZE  int = 50
 
 	//the buffer on a command sink's channel
 	SINK_CHANNEL_SIZE = 100

@@ -90,6 +90,11 @@ type IPlugin interface {
 	CreateObject(commandName string) (*Entry, string)
 
 	GetManifest() PluginManifest
+
+	Init() error
+
+	Shutdown()
+
 	//		GetCommands() []CommandDescriptor
 	//
 	//	GetTypes() []uint32
@@ -467,6 +472,11 @@ func (db *DataBase) RegisterPlugins(plugins ...IPlugin) error {
 
 		manifest := plugin.GetManifest()
 
+		err := plugin.Init()
+		if err != nil {
+			logging.Error("Could not init plugin %s: %s", plugin, err)
+			continue
+		}
 		//register the manifest plugins
 		for t := range manifest.Types {
 
@@ -488,6 +498,8 @@ func (db *DataBase) RegisterPlugins(plugins ...IPlugin) error {
 			db.registerCommand(manifest.Commands[j])
 
 		}
+
+
 
 	}
 	logging.Info("Registered %d plugins and %d commands\n", len(plugins), totalCommands)
@@ -828,7 +840,7 @@ func (db *DataBase) LoadSerializedEntry(se *SerializedEntry) error {
 	entry := (*creator).LoadObject(se.Bytes, se.Type)
 	entry.TypeId = db.GetTypeId(se.Type)
 
-	logging.Info("Created entry %s, registering", *entry)
+	logging.Debug("Created entry %s, registering", *entry)
 	if entry != nil {
 		db.dictionary[se.Key] = entry
 

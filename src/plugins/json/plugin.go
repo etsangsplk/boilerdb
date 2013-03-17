@@ -177,3 +177,13 @@ func (p *JSONPlugin)GetManifest() db.PluginManifest {
 func (p* JSONPlugin) String() string {
 	return "JSON"
 }
+
+
+//init function
+func (p* JSONPlugin) Init() error {
+
+	return nil
+}
+
+//shutdown function
+func (p* JSONPlugin) Shutdown() { }

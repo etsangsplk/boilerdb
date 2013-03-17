@@ -120,3 +120,11 @@ func (p *HashTablePlugin)GetManifest() db.PluginManifest {
 func (p* HashTablePlugin) String() string {
 	return "HASHTABLE"
 }
+//init function
+func (p* HashTablePlugin) Init() error {
+
+	return nil
+}
+
+//shutdown function
+func (p* HashTablePlugin) Shutdown() { }

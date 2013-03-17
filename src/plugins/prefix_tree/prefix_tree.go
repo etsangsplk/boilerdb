@@ -210,3 +210,12 @@ func (p *PrefixTreePlugin)GetManifest() db.PluginManifest {
 func (p* PrefixTreePlugin) String() string {
 	return "PREFIX_TREE"
 }
+
+//init function
+func (p* PrefixTreePlugin) Init() error {
+
+	return nil
+}
+
+//shutdown function
+func (p* PrefixTreePlugin) Shutdown() { }

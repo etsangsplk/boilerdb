@@ -219,3 +219,11 @@ func (p *BuiltinPlugin)GetManifest() db.PluginManifest {
  func (p* BuiltinPlugin) String() string {
 	 return "BUILTIN"
  }
+//init function
+func (p* BuiltinPlugin) Init() error {
+
+	return nil
+}
+
+//shutdown function
+func (p* BuiltinPlugin) Shutdown() { }

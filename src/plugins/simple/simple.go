@@ -139,3 +139,12 @@ func (p *SimplePlugin)GetManifest() db.PluginManifest {
 func (p* SimplePlugin) String() string {
 	return "SIMPLE"
 }
+
+//init function
+func (p* SimplePlugin) Init() error {
+
+	return nil
+}
+
+//shutdown function
+func (p* SimplePlugin) Shutdown() { }

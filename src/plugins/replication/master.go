@@ -142,6 +142,8 @@ func (s *Slave) Sync() error {
 		break
 
 	}
+	//send the "sync ok" message to signal the sync state has ended
+	s.session.OutChan <- db.NewResult(SYNC_OK_MESSAGE)
 
 	s.State = STATE_LIVE
 	return nil

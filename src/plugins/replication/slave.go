@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"bufio"
 	"encoding/gob"
+	"time"
 
 
 )
@@ -23,6 +24,14 @@ const (
 	STATE_LIVE = 3
 )
 
+const RECONNECT_INTERVAL = 5
+
+var stateMap map[int]string = map[int]string {
+	STATE_OFFLINE: "Offline",
+	STATE_PENDING_SYNC: "Pending Sync",
+	STATE_SYNC_IN_PROGRESS: "Sync in progress",
+	STATE_LIVE: "Live",
+}
 
 
 //this represents the status of a master in a slave
@@ -39,7 +48,7 @@ type Master struct {
 
 func (m *Master) String() string {
 
-	return fmt.Sprintf("Master(%s:%d)", m.Host, m.Port)
+	return fmt.Sprintf("Master(%s:%d, %s)", m.Host, m.Port, stateMap[m.State])
 }
 
 // Connect to a master
@@ -81,8 +90,20 @@ func (m *Master)Disconnect() error {
 	return nil
 }
 
+const SYNC_OK_MESSAGE = "+SYNC_OK"
+
+//run the replication loop of the master
 func (m *Master)RunReplication()  {
 
+
+	defer func() {
+		err := recover()
+		if err != nil {
+			logging.Error("Errro running replication loop! %s", err)
+			disconnectMaster()
+
+		}
+	}()
 
 	reader := bufio.NewReaderSize(m.Conn, 32768)
 	writer := bufio.NewWriterSize(m.Conn, 32768)
@@ -95,9 +116,23 @@ func (m *Master)RunReplication()  {
 		//read an parse the request
 		cmd, _ := redis.ReadRequest(reader)
 
-		if cmd.Command != "OK" {
+		//no command - WAT?
+		if len(cmd.Command) == 0 {
+			continue
+		}
 
+		//got a status - could be OK and could be
+		if  cmd.Command[0] == '+' {
+			if cmd.Command == SYNC_OK_MESSAGE {
+				logging.Info("Received sync ok message!")
+				currentMaster.State = STATE_LIVE
 
+			}
+			continue
+		} else if cmd.Command[0] == '-' {
+			logging.Warning("Got error message as command: %s", cmd.Command)
+			continue
+		}  else {
 			_, er := db.DB.HandleCommand(cmd, mockSession)
 			if er != nil {
 				logging.Warning("Error handling command: %s", er)
@@ -145,6 +180,7 @@ func disconnectMaster() {
 func connectToMaster(host string, port int) error {
 
 
+	logging.Info("Connecting to master %s:%d", host, port)
 	//check to see if we already have a master
 	if currentMaster != nil {
 		if currentMaster.Host == host && currentMaster.Port == port {
@@ -235,15 +271,47 @@ func HandleLOAD(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 	return nil
 }
 
+//this is a coroutine that checks the current master state and restarts it if it has failed
+func runMasterWatchdogLoop() {
+
+	logging.Info("Running replication watchdog loop!")
+	for {
+		if currentMaster != nil {
+
+			logging.Info("Checking current master: %s", currentMaster)
+			if currentMaster.State == STATE_OFFLINE {
+				err := currentMaster.Connect()
+				if err == nil {
+					logging.Info("Reconnected current master %s", *currentMaster)
+					go currentMaster.RunReplication()
+				} else {
+					logging.Warning("Could not connect to current master %s: %s", *currentMaster, err)
+				}
+
+			}
+		}
+
+		time.Sleep(RECONNECT_INTERVAL * time.Second)
+	}
+
+}
+
+
+//drop the current master and stop trying...
+func leaveCurrentMaster() {
+
+	logging.Info("Disconnecting from current master %s", currentMaster)
+
+	disconnectMaster()
+
+}
+
 func HandleSLAVEOF(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 	address := cmd.Key
 	logging.Info("Got slaveof to %s %s", cmd.Key, cmd.Args[0])
 
 	if strings.ToUpper(cmd.Key) == "NO" && bytes.Equal(bytes.ToUpper(cmd.Args[0]), []byte("ONE")) {
-		logging.Info("Disconnecting master")
-
-		disconnectMaster()
-
+		leaveCurrentMaster()
 		return db.ResultOK()
 	}
 	port, err := strconv.Atoi(string(cmd.Args[0]))
@@ -251,12 +319,9 @@ func HandleSLAVEOF(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Re
 	if err !=nil || port < 1 || port > 65535 {
 
 		return db.NewResult(db.NewPluginError("REPLICATION", "Invalid port number"))
-
 	}
 
 
-	remote :=    fmt.Sprintf("%s:%d", address, port)
-	logging.Info("Connecting to master %s", remote)
 
 	err = connectToMaster(address, port)
 

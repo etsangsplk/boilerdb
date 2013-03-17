@@ -27,6 +27,18 @@ func (p *ReplicationPlugin)String() string {
 	return "REPLICATION"
 }
 
+
+//init function
+func (p* ReplicationPlugin) Init() error {
+
+	go runMasterWatchdogLoop()
+
+	return nil
+}
+
+//shutdown function
+func (p* ReplicationPlugin) Shutdown() { }
+
 // Get the plugin manifest for the simple plugin
 func (p *ReplicationPlugin)GetManifest() db.PluginManifest {
 

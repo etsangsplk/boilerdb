@@ -91,6 +91,15 @@
 	func (p* DummyPlugin) String() string {
 		return T_DUMMY
 	}
+
+	//init function
+	func (p* DummyPlugin) Init() error {
+
+		return nil
+	}
+
+	//shutdown function
+	func (p* DummyPlugin) Shutdown() { }
 */
 package plugins
 
