@@ -217,7 +217,7 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 
 		for session.IsRunning {
 
-			msg := <-session.OutChan
+			msg := session.Receive()
 			if msg != nil {
 				SerializeResponse(msg.Value, writer)
 			} else {

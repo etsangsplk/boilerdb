@@ -24,6 +24,7 @@ type PrefixTree struct {
 func (ht *PrefixTree)Serialize(g *gob.Encoder) error {
 
 	err := g.Encode(ht)
+	
 	return err
 }
 

@@ -11,6 +11,7 @@ import (
 	"db"
 	"container/list"
 	"config"
+	"sync"
 //	"net"
 	"logging"
 	"errors"
@@ -33,7 +34,12 @@ type Slave struct {
 	buffer *list.List
 	Channel chan []byte
 	sink *db.CommandSink
+	lock sync.Mutex
 }
+
+var replicationLock sync.Mutex
+
+
 
 func (s *Slave) String() string {
 	if s.session != nil {
@@ -51,7 +57,7 @@ func NewSlave(session *db.Session) *Slave {
 		session: session,
 		LastCommandId: 0,
 		buffer: list.New(),
-		Channel: make(chan []byte),
+		Channel: make(chan []byte, 1000),
 	}
 	logging.Info("Created new slave for session %s", *session)
 
@@ -78,8 +84,10 @@ func (s *Slave)Send(se *db.SerializedEntry) error {
 		Args: [][]byte{[]byte(se.Type), []byte(fmt.Sprintf("%d", se.Len)), se.Bytes},
 	}
 
+	s.lock.Lock()
+	defer s.lock.Unlock()
 
-	s.session.OutChan <- db.NewResult(cmd)
+	s.session.Send( db.NewResult(cmd))
 
 	return nil
 
@@ -104,12 +112,12 @@ func (s *Slave) Sync() error {
 	for numRetries < config.MAX_SYNC_RETRIES {
 		ch := make(chan *db.SerializedEntry)
 		go func() {
-			defer func() {
-				e := recover()
-				if e != nil {
-					logging.Warning("Error while dumping: %s", e)
-				}
-			}()
+//			defer func() {
+//				e := recover()
+//				if e != nil {
+//					logging.Warning("Error while dumping: %s", e)
+//				}
+//			}()
 
 			var se *db.SerializedEntry
 			for {
@@ -117,9 +125,9 @@ func (s *Slave) Sync() error {
 				//read a serialized entry
 				se = <- ch
 
-				logging.Debug("Read entry %s", se.Key)
 				if se != nil {
 					//encode it
+					logging.Debug("Read entry %s", se.Key)
 
 					e := s.Send(se)
 					if e != nil {
@@ -130,7 +138,8 @@ func (s *Slave) Sync() error {
 				}
 			}
 
-			logging.Info("Finished writing to slave")
+
+			logging.Info("Finished writing database to slave.")
 		}()
 
 		err := db.DB.DumpEntries(ch, true)
@@ -142,27 +151,68 @@ func (s *Slave) Sync() error {
 		break
 
 	}
-	//send the "sync ok" message to signal the sync state has ended
-	s.session.OutChan <- db.NewResult(SYNC_OK_MESSAGE)
+	//now send the pending slave buffer if needed
 
+	logging.Info("Slave backlog buffer now %d entries, sending them first...", s.buffer.Len())
+	for s.buffer.Len() > 0 {
+
+		elem := s.buffer.Front()
+
+		cmd, ok := elem.Value.(*db.Command)
+		if ok {
+
+			s.session.Send( db.NewResult(cmd) )
+		} else {
+			logging.Warning("Could not pop entry from slave %s buffer", s)
+		}
+
+	}
+	s.lock.Lock()
 	s.State = STATE_LIVE
+	s.lock.Unlock()
+	logging.Info("Finished sending slave backlog buffer")
+
+
+	//send the "sync ok" message to signal the sync state has ended
+	s.session.Send(db.NewResult(SYNC_OK_MESSAGE))
+
 	return nil
+}
+
+const MAX_BUFFER int = 100000
+
+func (s *Slave) bufferCommand(cmd *db.Command) error {
+
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	//if the buffer is not full...
+	if s.buffer.Len() < MAX_BUFFER {
+		s.buffer.PushBack(cmd)
+		logging.Info("Buffered command %s to slave, buffer now %d", cmd, s.buffer.Len())
+		return nil
+	}
+
+	return fmt.Errorf("Buffer full on slave %s. Aborting replication", s)
 }
 
 func (s *Slave) StartReplication() error {
 
 
+	//Replication loop
 	go func() {
 
-		defer func(){
-			e := recover()
-			if e != nil {
-				logging.Info("Could not send command to session outchan: %s", e)
-				removeSlave(s)
-			}
+		//recovery...
+//		defer func(){
+//			e := recover()
+//			if e != nil {
+//				logging.Info("Could not send command to session outchan: %s", e)
+//				removeSlave(s)
+//			}
+//
+//		}()
 
-		}()
-
+		//sync the slave in a separate goroutine
 		err := s.Sync()
 		if err != nil {
 			logging.Warning("Could not sync slave %s! %s", s, err)
@@ -170,15 +220,34 @@ func (s *Slave) StartReplication() error {
 			return
 		}
 
-		for s.session.IsRunning {
+		// read commands from the sink and put them where they belong
+		for s.State != STATE_OFFLINE && s.session.IsRunning {
 
 			cmd := <- s.sink.Channel
 
 			if cmd != nil {
 
-				if s.session.OutChan != nil {
-					s.session.OutChan <- db.NewResult(cmd)
+				switch s.State {
+					//for live slaves - we simply replicate
+					case STATE_LIVE:
+						s.session.Send( db.NewResult(cmd))
+
+					//for offline - we raise a cry!
+					case STATE_OFFLINE:
+						logging.Error("Trying to send a command to an offline slave! Aborting replication")
+						panic("Pushing commands to an offline slave")
+
+					//buffer the command for pending sync slaves
+					default:
+						err := s.bufferCommand(cmd)
+						if err != nil {
+							logging.Error("Aborting replication - buffer full!")
+							panic(err)
+						}
+
 				}
+
+
 			}
 
 		}
@@ -190,6 +259,9 @@ func (s *Slave) StartReplication() error {
 }
 
 func (s *Slave) Disconnect() error {
+
+	s.lock.Lock()
+	defer s.lock.Unlock()
 
 	if s.State != STATE_OFFLINE {
 		s.State = STATE_OFFLINE
@@ -207,8 +279,12 @@ func addSlave(session *db.Session) error {
 	if session==nil {
 		return errors.New("Could not add nil session")
 	}
+	replicationLock.Lock()
+
 	if slaves[session.Id()] != nil {
+		replicationLock.Unlock()
 		return errors.New("Cannot add an existing slave!")
+
 	}
 
 	slave := NewSlave(session)
@@ -216,6 +292,7 @@ func addSlave(session *db.Session) error {
 	logging.Info("Added slave for session %s, currently replicating to %d slaves", session.Id(), len(slaves))
 
 
+	replicationLock.Unlock()
 	err := slave.StartReplication()
 	if err != nil {
 
@@ -228,9 +305,12 @@ func addSlave(session *db.Session) error {
 
 }
 
+
 func removeSlave(s *Slave) error {
 
+	replicationLock.Lock()
 	delete(slaves, s.session.Id())
+	replicationLock.Unlock()
 	s.Disconnect()
 	return nil
 

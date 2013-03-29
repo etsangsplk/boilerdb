@@ -130,11 +130,11 @@ func (s *CommandSink) PushCommand(cmd *Command) {
 		}
 	}()
 
-	to := time.After(1000 * time.Nanosecond)
+	timeout := time.After(1000 * time.Nanosecond)
 	select {
 	case s.Channel <- cmd:
 		break
-	case <-to:
+	case <-timeout:
 		logging.Debug("Timeout writing to channel %p", s.Channel)
 	}
 
@@ -147,6 +147,7 @@ func (s *CommandSink) Close() {
 
 	if s.Channel != nil {
 		close(s.Channel)
+		s.Channel = nil
 	}
 
 }
@@ -193,7 +194,7 @@ type DataBase struct {
 	LastSaveTime         time.Time
 	changesSinceLastSave int64
 	//tmp keys for bgsaving
-	bgsaveTempKeys map[string]*SerializedEntry
+	bgsaveTempKeys 		 map[string]*SerializedEntry
 
 	DataLoadInProgress util.AtomicFlag
 	Running            util.AtomicFlag
@@ -244,6 +245,7 @@ func InitGlobalDataBase(workingDir string) *DataBase {
 		sinkChan:        make(chan *Command, 10),
 		expiredKeys:     make(map[string]time.Time),
 		LastSaveTime:    time.Now(),
+		bgsaveTempKeys:  make(map[string]*SerializedEntry),
 	}
 	DB.Running.Set(true)
 	//start the goroutines for dispatching to sinks and for dump loading
@@ -606,11 +608,13 @@ func (db *DataBase) HandleCommand(cmd *Command, session *Session) (*Result, erro
 			//we need to persist this entry to the temp persist dictionary! it is about to be persisted
 			if commandDesc.CommandType == CMD_WRITER &&
 				db.BGsaveInProgress.IsSet() && entry.saveId != db.currentSaveId {
-				serialized, err := db.serializeEntry(entry, cmd.Key)
-				if err == nil {
-					db.bgsaveTempKeys[cmd.Key] = serialized
-					logging.Info("Temp persisted %s", cmd.Key)
-				}
+					serialized, err := db.serializeEntry(entry, cmd.Key)
+					if err == nil {
+						//logging.Info("Temp persisted %s", cmd.Key)
+						db.dictLock.Lock()
+						db.bgsaveTempKeys[cmd.Key] = serialized
+						db.dictLock.Unlock()
+					}
 
 			}
 
@@ -649,7 +653,7 @@ func (db *DataBase) multiplexCommandsToSinks() {
 		for i := range db.commandSinks {
 
 			sink, ok := db.commandSinks[i]
-			if ok && (sink.CommandType&db.CommandType(cmd.Command)) != 0 {
+			if ok && (sink.CommandType & db.CommandType(cmd.Command)) != 0 {
 				sink.PushCommand(cmd)
 
 			}
@@ -724,8 +728,9 @@ func (db *DataBase) Dump() (error) {
 			//read a serialized entry
 			se = <- ch
 
-			logging.Debug("Read entry %s", se.Key)
+
 			if se != nil {
+				logging.Debug("Read entry %s", se.Key)
 				//encode it
 				e:= globalEnc.Encode(se)
 				if e != nil {
@@ -775,7 +780,7 @@ func (db *DataBase) DumpEntries(dumpChan chan *SerializedEntry, doLock bool) (er
 	}
 	db.dictLock.Lock()
 
-	db.bgsaveTempKeys = make(map[string]*SerializedEntry)
+
 	saveId := db.currentSaveId
 	db.currentSaveId++
 	db.dictLock.Unlock()

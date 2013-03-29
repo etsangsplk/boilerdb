@@ -50,8 +50,8 @@ func HandleMONITOR(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Re
 
 				now := time.Now()
 
-				if session.OutChan != nil {
-					session.OutChan <- db.NewResult(fmt.Sprintf("[%d.%d %s] %s", now.Unix(), now.Nanosecond(), session.Addr, cmd.ToString()))
+				if session.IsRunning {
+					session.Send(db.NewResult(fmt.Sprintf("[%d.%d %s] %s", now.Unix(), now.Nanosecond(), session.Addr, cmd.ToString())) )
 				}
 			}
 

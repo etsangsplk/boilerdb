@@ -11,7 +11,7 @@ import (
 )
 type Session struct {
 	InChan    chan *Command
-	OutChan   chan *Result
+	outChan   chan *Result
 	db        *DataBase
 	Addr      net.Addr
 	IsRunning bool
@@ -29,7 +29,7 @@ func (db *DataBase) NewSession(addr net.Addr) *Session {
 
 	ret := &Session{
 		InChan:    make(chan *Command, config.IN_CHAN_BUFSIZE),
-		OutChan:   make(chan *Result, config.OUT_CHAN_BUFSIZE),
+		outChan:   make(chan *Result, config.OUT_CHAN_BUFSIZE),
 		db:        db,
 		Addr:      addr,
 		IsRunning: true,
@@ -59,13 +59,14 @@ func (s *Session) Run() {
 				defer func() {
 					e := recover()
 					if e != nil {
-						logging.Error("Runtime erro in plugin: %s", e)
-						s.OutChan <- NewResult(NewPluginError("",  fmt.Sprintf("%s", e)))
+						logging.Error("Runtime erro in plugin: %s. Stack: %s", e, debug.Stack())
+
+						s.outChan <- NewResult(NewPluginError("",  fmt.Sprintf("%s", e)))
 					}
 				}()
 				ret, _ := s.db.HandleCommand(cmd, s)
-				if s.OutChan != nil {
-					s.OutChan <- ret
+				if s.outChan != nil {
+					s.outChan <- ret
 				}
 			}()
 
@@ -75,6 +76,31 @@ func (s *Session) Run() {
 	}
 
 	logging.Info("Stopped Session %s....\n", s.Addr)
+}
+
+
+func (s *Session) Send(res *Result) {
+
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	if s.IsRunning {
+		if s.outChan != nil {
+			s.outChan <- res
+		}
+	}
+
+}
+
+func (s *Session) Receive() (*Result) {
+
+	if s.IsRunning {
+		if s.outChan != nil {
+			ret := <-s.outChan
+			return ret
+		}
+
+	}
+	return nil
 }
 
 //stop a session on end
