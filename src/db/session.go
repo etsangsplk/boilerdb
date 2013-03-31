@@ -21,6 +21,10 @@ type Session struct {
 func (s *Session) Id() string {
 	return s.Addr.String()
 }
+
+func (s *Session) String() string {
+	return s.Id()
+}
 //create a new session
 func (db *DataBase) NewSession(addr net.Addr) *Session {
 
@@ -35,10 +39,13 @@ func (db *DataBase) NewSession(addr net.Addr) *Session {
 		IsRunning: true,
 	}
 
+
+
 	return ret
 
 }
 
+//Run a session while it is open. Read from the input channel and push to the output channel
 func (s *Session) Run() {
 
 	defer func() {
@@ -46,6 +53,7 @@ func (s *Session) Run() {
 		if e != nil {
 			logging.Info("Error running session: %s", e)
 			debug.PrintStack()
+
 
 		}
 	}()
@@ -79,6 +87,7 @@ func (s *Session) Run() {
 }
 
 
+// Send a result down a sessions out channel in a safe way
 func (s *Session) Send(res *Result) {
 
 	s.lock.Lock()
@@ -86,11 +95,15 @@ func (s *Session) Send(res *Result) {
 	if s.IsRunning {
 		if s.outChan != nil {
 			s.outChan <- res
+			return
 		}
+
 	}
+	logging.Warning("Sending a command down a dead/invalid session %s", s)
 
 }
 
+//Receive a message from the session's channel in a safe way
 func (s *Session) Receive() (*Result) {
 
 	if s.IsRunning {

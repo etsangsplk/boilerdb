@@ -27,13 +27,13 @@ func NewResult(i interface{}) *Result {
 func ResultOK() *Result {
 	return NewResult(NewStatus("OK"))
 }
-
-const (
-	T_NONE    uint32 = 0
-	T_STRING  uint32 = 1
-	T_INTEGER uint32 = 2
-	T_LIST    uint32 = 4
-)
+//
+//const (
+//	T_NONE    uint32 = 0
+//	T_STRING  uint32 = 1
+//	T_INTEGER uint32 = 2
+//	T_LIST    uint32 = 4
+//)
 
 type DataStruct interface {
 	Serialize(*gob.Encoder) error
@@ -226,7 +226,7 @@ type KeyLock struct {
 }
 
 // create the global database and initialize it
-func InitGlobalDataBase(workingDir string) *DataBase {
+func InitGlobalDataBase(workingDir string, loadDump bool) *DataBase {
 	logging.Info("Starting database in working directory %s", workingDir)
 	DB = &DataBase{
 
@@ -251,7 +251,9 @@ func InitGlobalDataBase(workingDir string) *DataBase {
 	//start the goroutines for dispatching to sinks and for dump loading
 	logging.Info("Starting side goroutines for global database")
 	go DB.multiplexCommandsToSinks()
-	go DB.LoadDump()
+	if loadDump {
+		go DB.LoadDump()
+	}
 
 	//start the side goroutine for auto-saving the databse
 	if config.BGSAVE_SECONDS > 0 {
@@ -315,6 +317,24 @@ func (db *DataBase) SetExpire(key string, entry *Entry, when time.Time) bool {
 	logging.Debug("Expiring %s at %s", key, when)
 
 	return true
+}
+
+//Delete a key from the database. Return true if it existed, else false
+func (db *DataBase) Delete(key string) bool {
+
+	db.LockKey(key, CMD_WRITER)
+	defer db.UnlockKey(key, CMD_WRITER)
+
+	db.dictLock.Lock()
+	defer db.dictLock.Unlock()
+
+	_, ok := db.dictionary[key]
+
+	delete(db.dictionary, key)
+	delete(db.bgsaveTempKeys, key)
+	delete(db.expiredKeys, key)
+
+	return ok
 }
 
 //get the mode of a command (writer /reader / builtin)
@@ -589,6 +609,7 @@ func (db *DataBase) HandleCommand(cmd *Command, session *Session) (*Result, erro
 				var typeName string
 				entry, typeName = commandDesc.Owner.CreateObject(commandDesc.CommandName)
 
+				logging.Info("Created a new entry %s with type %s", entry, typeName)
 				//if the entry is nil - we do nothing for the tree
 				if entry != nil {
 					entry.saveId = db.currentSaveId
@@ -743,6 +764,8 @@ func (db *DataBase) Dump() (error) {
 
 		logging.Info("Finished writing to encoder")
 	}(&inProgress)
+
+
 
 	err = db.DumpEntries(ch, false)
 	inProgress = false

@@ -14,6 +14,14 @@ type Command struct {
 	Args    [][]byte
 }
 
+// Create a new command object
+func NewCommand(cmd, key string, args... []byte) *Command{
+
+
+	return &Command{cmd, key, args}
+
+
+}
 // Check if a command has an argument (e.g. "WITHSCORES").
 // case insensitive
 func (cmd *Command) HasArg(s string) bool {

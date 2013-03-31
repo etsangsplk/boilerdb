@@ -2,6 +2,7 @@
 package db
 
 const (
+	E_OK = 1
 	E_UNKNOWN_ERROR int = 0
 	E_INVALID_COMMAND int = 2
 	E_TYPE_MISMATCH int = 3
@@ -74,5 +75,5 @@ func NewError(code int) *Error {
 }
 
 func NewStatus(str string) *Status {
-	return &Status{Error {0}, str}
+	return &Status{Error {E_OK}, str}
 }

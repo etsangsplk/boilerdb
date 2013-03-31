@@ -49,7 +49,7 @@ func main() {
 	port := flag.Int("port", config.LISTEN_PORT, "Listening port" )
 
 	flag.Parse()
-	database := db.InitGlobalDataBase(*workingDir)
+	database := db.InitGlobalDataBase(*workingDir, false)
 
 	database.RegisterPlugins(ht, smp, ptree, builtin, js, rep)
 
