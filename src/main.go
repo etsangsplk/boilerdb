@@ -1,10 +1,6 @@
-/**
- * Created with IntelliJ IDEA.
- * User: dvirsky
- * Date: 11/8/12
- * Time: 6:50 PM
- * To change this template use File | Settings | File Templates.
- */
+// 		Welcome to BoilerDB
+//
+// Hi!
 package main
 
 import (
@@ -31,7 +27,8 @@ func main() {
 
 	logging.SetLevel(logging.ERROR | logging.WARN | logging.CRITICAL | logging.INFO)
 
-	runtime.GOMAXPROCS(runtime.NumCPU())
+	logging.Info("Running on Go %s", runtime.GOROOT())
+	runtime.GOMAXPROCS(runtime.NumCPU()*2)
 
 
 
@@ -49,7 +46,7 @@ func main() {
 	port := flag.Int("port", config.LISTEN_PORT, "Listening port" )
 
 	flag.Parse()
-	database := db.InitGlobalDataBase(*workingDir, false)
+	database := db.InitGlobalDataBase(*workingDir, true)
 
 	database.RegisterPlugins(ht, smp, ptree, builtin, js, rep)
 

@@ -182,12 +182,10 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 	_ = fp
 
 	reader := bufio.NewReaderSize(c, 32768)
-	writer := bufio.NewWriterSize(c, 32768)
-
 	session := r.db.NewSession(c.RemoteAddr())
 
 	//error handler - write an error message to the socket and close it
-	defer func(err *error, writer *bufio.Writer) {
+	defer func(err *error) {
 		if e := recover(); e != nil {
 
 			defer func() {
@@ -208,33 +206,28 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 			}
 
 		}
-	}(&err, writer)
+	}(&err)
 
 	go session.Run()
 
 	//this goroutine actually handles processing and writing to the
 	go func() {
 
+
 		for session.IsRunning {
 
 			msg := session.Receive()
 			if msg != nil {
-				SerializeResponse(msg.Value, writer)
+				SerializeResponse(msg.Value, c)
 			} else {
-				SerializeResponse(nil, writer)
+				SerializeResponse(nil, c)
 			}
-			err = writer.Flush()
-			if err != nil {
 
-				session.Stop()
-
-				break
-
-			}
 
 		}
 		logging.Debug("Stopping Serializer....\n")
 	}()
+
 
 	//the request reading loop
 	for err == nil && r.isRunning && session.IsRunning {

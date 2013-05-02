@@ -1,5 +1,8 @@
+
 //Test plugin doing simple set/get/expire
+
 package db
+
 
 import (
 	"encoding/gob"
@@ -8,11 +11,11 @@ import (
 )
 
 
-type TestStruct struct {
+type testStruct struct {
 	Val string
 }
 
-func (ht *TestStruct)Serialize(g *gob.Encoder) error {
+func (ht *testStruct)Serialize(g *gob.Encoder) error {
 
 	err := g.Encode(ht)
 
@@ -22,14 +25,14 @@ func (ht *TestStruct)Serialize(g *gob.Encoder) error {
 
 const T_STRING = "STRING"
 
-type TestPlugin struct {
+type testPlugin struct {
 
 
 }
 
 func HandleSET(cmd *Command, entry *Entry, session *Session) *Result {
 
-	obj := entry.Value.(*TestStruct)
+	obj := entry.Value.(*testStruct)
 	obj.Val = string(cmd.Args[0])
 
 	logging.Info("Setting key %s to %s", cmd.Key, obj.Val)
@@ -39,7 +42,7 @@ func HandleSET(cmd *Command, entry *Entry, session *Session) *Result {
 func HandleGET(cmd *Command, entry *Entry, session *Session) *Result {
 
 	if entry != nil {
-		obj := entry.Value.(*TestStruct)
+		obj := entry.Value.(*testStruct)
 		r := NewResult(obj.Val)
 		return r
 	}
@@ -58,18 +61,18 @@ func HandlePING(cmd *Command, entry *Entry, session *Session) *Result {
 	return NewResult("PONG")
 }
 
-func (p *TestPlugin)CreateObject(commandName string) (*Entry, string) {
+func (p *testPlugin)CreateObject(commandName string) (*Entry, string) {
 
-	ret := &Entry{ Value: &TestStruct{} }
+	ret := &Entry{ Value: &testStruct{} }
 
 return ret, T_STRING
 }
 
 //deserialize and create a db entry
-func (p *TestPlugin)LoadObject(buf []byte, typeName string) *Entry {
+func (p *testPlugin)LoadObject(buf []byte, typeName string) *Entry {
 
 	if typeName == T_STRING {
-		var s TestStruct
+		var s testStruct
 		buffer := bytes.NewBuffer(buf)
 		dec := gob.NewDecoder(buffer)
 		err := dec.Decode(&s)
@@ -90,7 +93,7 @@ return nil
 
 
 // Get the plugin manifest for the simple plugin
-func (p *TestPlugin)GetManifest() PluginManifest {
+func (p *testPlugin)GetManifest() PluginManifest {
 
 	return PluginManifest {
 
@@ -128,17 +131,17 @@ func (p *TestPlugin)GetManifest() PluginManifest {
 
 }
 // String representation of the plugin to support %s formatting
-func (p* TestPlugin) String() string {
+func (p* testPlugin) String() string {
 	return "TESTUNG"
 }
 
 //init function
-func (p* TestPlugin) Init() error {
+func (p* testPlugin) Init() error {
 
 	return nil
 }
 
 //shutdown function
-func (p* TestPlugin) Shutdown() { }
+func (p* testPlugin) Shutdown() { }
 
 

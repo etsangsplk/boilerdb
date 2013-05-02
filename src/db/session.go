@@ -48,6 +48,7 @@ func (db *DataBase) NewSession(addr net.Addr) *Session {
 //Run a session while it is open. Read from the input channel and push to the output channel
 func (s *Session) Run() {
 
+
 	defer func() {
 		e := recover()
 		if e != nil {

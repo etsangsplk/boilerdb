@@ -1,3 +1,7 @@
+// The db is the heart of Boiler - and the only part that is not a plugin.
+//
+// It contains the main database functionality and the API that plugins need to implement, and the API they can talk to
+//
 package db
 
 import (
@@ -12,6 +16,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"util"
 )
@@ -207,6 +212,18 @@ type DataBase struct {
 	sinkChan     chan *Command
 	commandSinks map[string]*CommandSink
 
+	//the unique state of the database, used for replication mainly
+	State struct {
+		//master instance id for replication
+		//this is used for the data and created when there is no data available
+		DataInstanceId	string
+
+		ServerId 		string
+		//rolling transaction id. we always start on 0
+		LastTransactionId uint64
+	}
+
+
 	Stats struct {
 		//number of current sessions
 		ActiveSessions     int
@@ -215,6 +232,22 @@ type DataBase struct {
 		RegisteredPlugins  int
 		RegisteredCommands int
 	}
+}
+
+func(d *DataBase ) initState() {
+
+	d.State.DataInstanceId = util.UniqId()
+	d.State.LastTransactionId = 0
+	d.State.ServerId = util.UniqId()
+
+	logging.Info("Initialized database state: %s", d.State)
+
+}
+
+func (d *DataBase) IncrementTransactionId() uint64 {
+
+
+	return atomic.AddUint64(&(d.State.LastTransactionId), 1)
 }
 
 var DB *DataBase = nil
@@ -247,6 +280,8 @@ func InitGlobalDataBase(workingDir string, loadDump bool) *DataBase {
 		LastSaveTime:    time.Now(),
 		bgsaveTempKeys:  make(map[string]*SerializedEntry),
 	}
+
+	DB.initState()
 	DB.Running.Set(true)
 	//start the goroutines for dispatching to sinks and for dump loading
 	logging.Info("Starting side goroutines for global database")
@@ -609,7 +644,7 @@ func (db *DataBase) HandleCommand(cmd *Command, session *Session) (*Result, erro
 				var typeName string
 				entry, typeName = commandDesc.Owner.CreateObject(commandDesc.CommandName)
 
-				logging.Info("Created a new entry %s with type %s", entry, typeName)
+				//logging.Info("Created a new entry %s with type %s", entry, typeName)
 				//if the entry is nil - we do nothing for the tree
 				if entry != nil {
 					entry.saveId = db.currentSaveId
@@ -646,6 +681,7 @@ func (db *DataBase) HandleCommand(cmd *Command, session *Session) (*Result, erro
 		ret = commandDesc.Handler(cmd, nil, session)
 	}
 	if commandDesc.CommandType == CMD_WRITER {
+		db.IncrementTransactionId()
 		db.changesSinceLastSave++
 	}
 
@@ -686,6 +722,7 @@ func (db *DataBase) multiplexCommandsToSinks() {
 func (db *DataBase) serializeEntry(entry *Entry, k string) (*SerializedEntry, error) {
 
 	var buf bytes.Buffer
+
 	enc := gob.NewEncoder(&buf)
 	err := entry.Value.Serialize(enc)
 	if err != nil {
@@ -734,6 +771,10 @@ func (db *DataBase) Dump() (error) {
 	globalEnc := gob.NewEncoder(fp)
 	inProgress := true
 
+	err = globalEnc.Encode(db.State)
+	if err != nil {
+		logging.Panic("Could not save db state: %s", err)
+	}
 	//this function reads back from the channel each serialized entry, and sends it to the file writer
 	go func(inProgress *bool) {
 		defer func() {
@@ -903,7 +944,9 @@ func (db *DataBase) LoadDump() error {
 	dec := gob.NewDecoder(fp)
 	var se SerializedEntry
 
+	err = dec.Decode(&(db.State))
 	nLoaded := 0
+
 	for err != io.EOF {
 		err = dec.Decode(&se)
 

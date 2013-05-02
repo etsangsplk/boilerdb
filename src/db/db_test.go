@@ -18,11 +18,9 @@ import (
 
 
 
-
-
 func Test_Database(t *testing.T) {
 
-	plugin := new(TestPlugin)
+	plugin := new(testPlugin)
 
 	//test registering a plugin - we'll use it later!
 	d := InitGlobalDataBase(".", false)
@@ -155,22 +153,5 @@ func Test_Database(t *testing.T) {
 	if err != nil {
 			t.Errorf("Got invalid type for result: %s", res.Value)
 	}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 }

@@ -1,24 +1,26 @@
-/**
- * Created with IntelliJ IDEA.
- * User: dvirsky
- * Date: 12/1/12
- * Time: 3:03 PM
- * To change this template use File | Settings | File Templates.
- */
+//
+// Various utility functions used across the database
+//
 package util
 
 import (
 	"sync/atomic"
+	"os"
+	"crypto/sha1"
+	"fmt"
 	)
 
+// Wrapper for atomic C.a.S boolean flags
 type AtomicFlag struct {
 	value int32
 }
 
+// Return True if a flag is set
 func (af *AtomicFlag)IsSet() bool {
 	return atomic.LoadInt32(&af.value) != 0
 }
 
+// Atomically set the value of the flag, without checking the current state of it
 func (af *AtomicFlag)Set(value bool) {
 	if value {
 		atomic.StoreInt32(&(af.value), 1)
@@ -51,5 +53,17 @@ func (af *AtomicFlag)GetSet(value bool) bool {
 	return swapped
 
 
+}
+
+// generate a unique id by running SHA1 on /dev/urandom
+func UniqId() string {
+
+	f, _ := os.Open("/dev/urandom")
+	b := make([]byte, 16)
+	f.Read(b)
+	f.Close()
+
+	s := sha1.New()
+	return fmt.Sprintf("%x", s.Sum(b)[:16])
 }
 
