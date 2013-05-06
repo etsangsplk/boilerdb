@@ -1,7 +1,21 @@
 // A simple logging module that mimics the behavior of Python's logging module.
+//
 // All it does basically is wrap Go's logger with nice multi-level logging calls, and
 // allows you to set the logging level of your app in runtime.
-// Logging is done just like calling fmt.Sprintf: logging.Info("This object is %s and that is %s", obj, that)
+//
+// Logging is done just like calling fmt.Sprintf:
+// 		logging.Info("This object is %s and that is %s", obj, that)
+//
+// example output:
+//	2013/05/07 01:20:26 INFO @ db.go:528: Registering plugin REPLICATION
+//	2013/05/07 01:20:26 INFO @ db.go:562: Registered 6 plugins and 22 commands
+//	2013/05/07 01:20:26 INFO @ slave.go:277: Running replication watchdog loop!
+//	2013/05/07 01:20:26 INFO @ redis.go:49: Redis adapter listening on 0.0.0.0:2000
+//	2013/05/07 01:20:26 INFO @ main.go:69: Starting adapter...
+//	2013/05/07 01:20:26 INFO @ db.go:966: Finished dump load. Loaded 2 objects from dump
+//	2013/05/07 01:22:26 INFO @ db.go:329: Checking persistence... 0 changes since 2m0.000297531s
+//	2013/05/07 01:22:26 INFO @ db.go:337: No need to save the db. no changes...
+//	2013/05/07 01:22:26 INFO @ db.go:341: Sleeping for 2m0s
 //
 package logging
 
@@ -29,10 +43,16 @@ const (
 var level int = ALL
 
 // Set the logging level.
+//
 // Contrary to Python that specifies a minimal level, this logger is set with a bit mask
 // of active levels.
-// e.g. for INFO and ERROR use SetLevel(logging.INFO | logging.ERROR)
-// For everything but debug and info use SetLevel(logging.ALL &^ (logging.INFO | logging.DEBUG))
+//
+// e.g. for INFO and ERROR use:
+// 		SetLevel(logging.INFO | logging.ERROR)
+//
+// For everything but debug and info use:
+// 		SetLevel(logging.ALL &^ (logging.INFO | logging.DEBUG))
+//
 func SetLevel(l int) {
 	level = l
 
@@ -53,10 +73,12 @@ func Debug(msg string, args ...interface{}) {
 	}
 }
 
+//format the message
 func writeMessage(level string, msg string, args ...interface {} ) {
 	f, l := getContext()
 	log.Printf(fmt.Sprintf("%s @ %s:%d: %s", level, f, l, msg), args...)
 }
+
 //output INFO level messages
 func Info(msg string, args ...interface{}) {
 
