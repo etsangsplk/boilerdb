@@ -1,9 +1,5 @@
-/**
- * Created with IntelliJ IDEA.
- * User: daniel
- * Date: 11/15/12
- * Time: 12:58 AM
- * To change this template use File | Settings | File Templates.
+/*
+Simple GET/SET/DELETE implementation of strings
  */
 package simple
 

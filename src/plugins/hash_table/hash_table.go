@@ -1,10 +1,7 @@
-/**
- * Created with IntelliJ IDEA.
- * User: dvirsky
- * Date: 11/15/12
- * Time: 12:58 AM
- * To change this template use File | Settings | File Templates.
- */
+/*
+This example plugin implements some of the H* commands of redis:
+ 	HSET HGET HGETALL
+*/
 package hash_table
 
 import (

@@ -11,21 +11,23 @@
 //	2013/05/07 01:20:26 INFO @ db.go:562: Registered 6 plugins and 22 commands
 //	2013/05/07 01:20:26 INFO @ slave.go:277: Running replication watchdog loop!
 //	2013/05/07 01:20:26 INFO @ redis.go:49: Redis adapter listening on 0.0.0.0:2000
-//	2013/05/07 01:20:26 INFO @ main.go:69: Starting adapter...
+//	2013/05/07 01:20:26 WARN @ main.go:69: Starting adapter...
 //	2013/05/07 01:20:26 INFO @ db.go:966: Finished dump load. Loaded 2 objects from dump
 //	2013/05/07 01:22:26 INFO @ db.go:329: Checking persistence... 0 changes since 2m0.000297531s
 //	2013/05/07 01:22:26 INFO @ db.go:337: No need to save the db. no changes...
-//	2013/05/07 01:22:26 INFO @ db.go:341: Sleeping for 2m0s
+//	2013/05/07 01:22:26 DEBUG @ db.go:341: Sleeping for 2m0s
 //
 package logging
 
 import (
 	"log"
 	"fmt"
+	"io"
 	"runtime/debug"
 	"path"
 	"runtime"
 )
+
 
 
 const (
@@ -35,6 +37,8 @@ const (
 	WARN = 4
 	ERROR = 8
 	CRITICAL  = 16
+	QUIET = ERROR | CRITICAL  //setting for errors only
+	NORMAL = INFO | WARN | ERROR | CRITICAL // default setting - all besides debug
 	ALL = 255
 	NOTHING = 0
 )
@@ -55,9 +59,14 @@ var level int = ALL
 //
 func SetLevel(l int) {
 	level = l
-
 }
 
+// Set the output writer. for now it just wraps log.SetOutput()
+func SetOutPut(w io.Writer) {
+	log.SetOutput(w)
+}
+
+//get the stack (line + file) context to return the caller to the log
 func getContext() (file string, line int) {
 
 	_, file, line, _ = runtime.Caller(3)
@@ -85,6 +94,7 @@ func Info(msg string, args ...interface{}) {
 	if level & INFO != 0 {
 
 		writeMessage("INFO", msg, args...)
+
 	}
 }
 
@@ -106,13 +116,13 @@ func Error(msg string, args ...interface{}) {
 func Critical(msg string, args ...interface{}) {
 	if level & CRITICAL != 0 {
 		writeMessage("CRITICAL", msg, args...)
-		log.Println(debug.Stack())
+		log.Println(string(debug.Stack()))
 	}
 }
 
 // Raise a PANIC while writing the stack trace to the log
 func Panic(msg string, args ...interface{}) {
-	log.Println(debug.Stack())
+	log.Println(string(debug.Stack()))
 	log.Panicf(msg, args...)
 
 }

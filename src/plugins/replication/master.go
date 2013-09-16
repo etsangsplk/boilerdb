@@ -1,10 +1,4 @@
-/**
- * Created with IntelliJ IDEA.
- * User: dvirsky
- * Date: 2/16/13
- * Time: 4:35 PM
- * To change this template use File | Settings | File Templates.
- */
+
 package replication
 
 import (

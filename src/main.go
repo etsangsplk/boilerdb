@@ -25,10 +25,10 @@ import (
 
 func main() {
 
-	logging.SetLevel(logging.ERROR | logging.WARN | logging.CRITICAL | logging.INFO)
-
-	logging.Info("Running on Go %s", runtime.GOROOT())
-	runtime.GOMAXPROCS(runtime.NumCPU()*2)
+	//logging.SetLevel(logging.ERROR | logging.WARN | logging.CRITICAL | logging.INFO)
+	logging.SetLevel(logging.ALL &^ logging.DEBUG)
+	logging.Critical("Running on Go %s", runtime.GOROOT())
+	runtime.GOMAXPROCS(runtime.NumCPU())
 
 
 

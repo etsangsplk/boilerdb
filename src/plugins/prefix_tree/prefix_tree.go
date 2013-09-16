@@ -1,9 +1,7 @@
-/**
- * Created with IntelliJ IDEA.
- * User: dvirsky
- * Date: 11/17/12
- * Time: 1:40 PM
- * To change this template use File | Settings | File Templates.
+/*
+This plugin lets you store keys in a prefix tree, and do a prefix search on them.
+
+Use PSET [key] [value] [score] to add values to the prefix tree in [key], and PSEARCH [key] prefix to search it.
  */
 package prefix_tree
 

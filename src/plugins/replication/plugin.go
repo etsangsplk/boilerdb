@@ -1,5 +1,4 @@
-// Replication comand registration etc
-
+// Replication comand registration etc. This is not done yet
 package replication
 
 import (

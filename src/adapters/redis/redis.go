@@ -10,29 +10,25 @@
 //
 package redis
 
-
-
 import (
 	"bufio"
 	"db"
 	"errors"
 	"fmt"
 	"io"
-	"logging"
 	"log"
+	"logging"
 	"net"
 	"reflect"
 	"runtime/debug"
 	"strconv"
 )
 
-
 type RedisAdapter struct {
 	db         *db.DataBase
 	listener   net.Listener
 	numClients uint
 	isRunning  bool
-
 }
 
 func (r *RedisAdapter) Init(d *db.DataBase) {
@@ -77,8 +73,6 @@ func (r *RedisAdapter) Listen(addr net.Addr) error {
 // 10. float32/64 (serialized as string,)
 func SerializeResponse(res interface{}, writer io.Writer) error {
 
-
-
 	switch res.(type) {
 
 	case nil:
@@ -94,7 +88,7 @@ func SerializeResponse(res interface{}, writer io.Writer) error {
 
 	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
 		writer.Write([]byte(fmt.Sprintf(":%d\r\n", res)))
-	case  float32 , float64:
+	case float32, float64:
 		s := fmt.Sprintf("%f", res)
 		writer.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(s), s)))
 	case string:
@@ -102,12 +96,12 @@ func SerializeResponse(res interface{}, writer io.Writer) error {
 		writer.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(s), s)))
 
 	case []interface{}:
-		arr := res.([]interface {})
+		arr := res.([]interface{})
 		l := len(arr)
 		writer.Write([]byte(fmt.Sprintf("*%d\r\n", l)))
 		//recursively serialize all entries in the list
 		for i := 0; i < l; i++ {
-			err := SerializeResponse(arr[i], writer )
+			err := SerializeResponse(arr[i], writer)
 			if err != nil {
 				logging.Panic("Could not serialize response: %s", err)
 			}
@@ -136,7 +130,7 @@ func SerializeResponse(res interface{}, writer io.Writer) error {
 
 		//recursively serialize all entries in the list
 		for i := 0; i < len(cmd.Args); i++ {
-			err := SerializeResponse(string(cmd.Args[i]), writer )
+			err := SerializeResponse(string(cmd.Args[i]), writer)
 			if err != nil {
 				logging.Panic("Could not serialize response: %s", err)
 			}
@@ -156,14 +150,14 @@ func SerializeResponse(res interface{}, writer io.Writer) error {
 		writer.Write([]byte(fmt.Sprintf("*%d\r\n", len(m)*2)))
 		for k, _ := range m {
 			writer.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(k), k)))
-			err := SerializeResponse(m[k], writer )
+			err := SerializeResponse(m[k], writer)
 			if err != nil {
 				log.Panic(err)
 			}
 		}
 
 	default:
-		writer.Write([]byte(fmt.Sprintf("-ERR Unknown type '%s'\r\n", )))
+		writer.Write([]byte(fmt.Sprintf("-ERR Unknown type '%s'\r\n")))
 		logging.Error("Unknown type '%s'. Could not serialize", reflect.TypeOf(res))
 		return fmt.Errorf("Unknown type '%s'. Could not serialize", reflect.TypeOf(res))
 
@@ -213,7 +207,6 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 	//this goroutine actually handles processing and writing to the
 	go func() {
 
-
 		for session.IsRunning {
 
 			msg := session.Receive()
@@ -223,11 +216,9 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 				SerializeResponse(nil, c)
 			}
 
-
 		}
 		logging.Debug("Stopping Serializer....\n")
 	}()
-
 
 	//the request reading loop
 	for err == nil && r.isRunning && session.IsRunning {
@@ -250,7 +241,6 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 	c.Close()
 	return err
 }
-
 
 // Start the redis adapter and listen to its port.
 //
@@ -323,8 +313,6 @@ var ReadError = errors.New("Error Reading from Client")
 
 // Everything below is taken from https://github.com/alphazero/Go-Redis
 
-
-
 // panics on error (with redis.Error)
 func assertCtlByte(buf []byte, b byte, info string) {
 	if buf[0] != b {
@@ -368,7 +356,6 @@ const (
 
 func readToCRLF(r *bufio.Reader) []byte {
 	//var buf []byte
-
 
 	buf, _, e := r.ReadLine()
 	if e != nil {

@@ -1,3 +1,6 @@
+/*
+Some built in commands that are not really plugins, such as BGSAVE, EXPIRE, INFO, MONITOR
+ */
 package builtin
 
 import (

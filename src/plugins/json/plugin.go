@@ -1,9 +1,12 @@
-/**
- * Created with IntelliJ IDEA.
- * User: dvirsky
- * Date: 12/3/12
- * Time: 1:04 AM
- * To change this template use File | Settings | File Templates.
+/*
+A plugin that lets you save json strings and handle them as real objects, querying an manipulating them.
+The included commands are:
+	JSET [key] [json path] [value]: Set the value of a given node in a JSON object. Use '.' as the path for setting the entire object
+
+	JGET [key] Dump the entire contents of a JSON object
+
+	JQUERY [key] [json path]: Get the value of a given node in a JSON object. Use '.' as the path for the root
+
  */
 package json
 import (
