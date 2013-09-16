@@ -92,19 +92,23 @@ type PluginManifest struct {
 
 //The API for an abstract plugin, that creates data structs and registers handlers
 type IPlugin interface {
+
+	//Create an object of the type the plugin is responsible for.
+	//This returns an Entry object, and a string with the textual name of the registered type (e.g. "STRING")
 	CreateObject(commandName string) (*Entry, string)
 
+	//Expose a PluginManifest object of the commands and data types this plugin handles
 	GetManifest() PluginManifest
 
+	//Init the plugin engine
 	Init() error
 
+	//Shutdown the plugin engine
 	Shutdown()
 
-	//		GetCommands() []CommandDescriptor
-	//
-	//	GetTypes() []uint32
-	//
-	LoadObject([]byte, string) *Entry
+	//Deserialize an object, with data as a raw buffer of how we saved that object (usually in GOB format)
+	//and dtype as a string with the name of the type
+	LoadObject(data []byte, dtype string) *Entry
 
 	//used to identify the plugin as a string, for the %s formatting...
 	String() string

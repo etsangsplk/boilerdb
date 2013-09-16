@@ -81,6 +81,7 @@
 					MinArgs: 0,	MaxArgs: 0,
 					Handler: HandleFOO,
 					CommandType: db.CMD_WRITER,
+					Help: "FOO [key]: Do nothing with a key",
 				},
 			},
 		}

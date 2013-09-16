@@ -50,6 +50,36 @@ Boiler DB is an in memory database that has a few interesting twists:
 
 A plugin registers itself with GetManifest(), that returns a PluginManifest struct.
 
+
+The IPLugin interface is as follows:
+
+```go
+type IPlugin interface {
+
+	//Create an object of the type the plugin is responsible for.
+	//This returns an Entry object, and a string with the textual name of the registered type (e.g. "STRING")
+	CreateObject(commandName string) (*Entry, string)
+
+	//Expose a PluginManifest object of the commands and data types this plugin handles
+	GetManifest() PluginManifest
+
+	//Init the plugin engine
+	Init() error
+
+	//Shutdown the plugin engine
+	Shutdown()
+
+	//Deserialize an object, with data as a raw buffer of how we saved that object (usually in GOB format)
+	//and dtype as a string with the name of the type
+	LoadObject(data []byte, dtype string) *Entry
+
+	//used to identify the plugin as a string, for the %s formatting...
+	String() string
+}
+```
+
+
+
 Here is a skeleton example of a plugin that does nothing, really:
 
 ```go
@@ -126,6 +156,7 @@ func (p *DummyPlugin)GetManifest() db.PluginManifest {
 				MinArgs: 0,	MaxArgs: 0,
 				Handler: HandleFOO,
 				CommandType: db.CMD_WRITER,
+				Help: "FOO [key]: Do nothing with a key",
 			},
 		},
 	}
