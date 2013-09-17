@@ -50,24 +50,25 @@ Since it's not redis compliant in terms of cmmands, you can't run all benchmarks
 Here are a few results of redis-benchmark from my laptop (quad Core i7 @ 2.3 Ghz)
 
     Testing GET (no pipelining):
-    Boiler: redis-benchmark -t get -p 2000 -q -n 1000000
-    GET: 115890.25 requests per second
-    Redis: redis-benchmark -t get  -q -n 1000000
-    GET: 173280.20 requests per second
+        Boiler: redis-benchmark -t get -p 2000 -q -n 1000000
+        GET: 115890.25 requests per second
+
+        Redis: redis-benchmark -t get  -q -n 1000000
+        GET: 173280.20 requests per second
 
     Testing PING (no pipelining):
-    Boiler: redis-benchmark -t ping  -q -n 1000000  -p 2000
-    PING_INLINE: 112650.80 requests per second
+        Boiler: redis-benchmark -t ping  -q -n 1000000  -p 2000
+        PING_INLINE: 112650.80 requests per second
 
-    Redis: redis-benchmark -t ping  -q -n 1000000
-    PING_INLINE: 170171.00 requests per second
+        Redis: redis-benchmark -t ping  -q -n 1000000
+        PING_INLINE: 170171.00 requests per second
 
     Testing GET *with* pipelining:
-    Boiler: redis-benchmark -t get  -q -n 1000000  -p 2000 -P 1000
-    GET: 881,057.25 requests per second
+        Boiler: redis-benchmark -t get  -q -n 1000000  -p 2000 -P 1000
+        GET: 881,057.25 requests per second
 
-    Redis: redis-benchmark -t get  -q -n 1000000 -P 1000
-    GET: 1,605,136.38 requests per second
+        Redis: redis-benchmark -t get  -q -n 1000000 -P 1000
+        GET: 1,605,136.38 requests per second
 
 Of course it's slower than redis, but:
 
