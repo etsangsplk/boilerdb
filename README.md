@@ -50,33 +50,32 @@ Since it's not redis compliant in terms of cmmands, you can't run all benchmarks
 Here are a few results of redis-benchmark from my laptop (quad Core i7 @ 2.3 Ghz)
 
     Testing GET (no pipelining):
-    > Boiler: redis-benchmark -t get -p 2000 -q -n 1000000
-    > GET: 115890.25 requests per second
-    >
-    > Redis: redis-benchmark -t get  -q -n 1000000
-    > GET: 173280.20 requests per second
+    Boiler: redis-benchmark -t get -p 2000 -q -n 1000000
+    GET: 115890.25 requests per second
+    Redis: redis-benchmark -t get  -q -n 1000000
+    GET: 173280.20 requests per second
 
     Testing PING (no pipelining):
-    > Boiler: redis-benchmark -t ping  -q -n 1000000  -p 2000
-    > PING_INLINE: 112650.80 requests per second
-    >
-    > Boiler: redis-benchmark -t ping  -q -n 1000000
-    > PING_INLINE: 170171.00 requests per second
+    Boiler: redis-benchmark -t ping  -q -n 1000000  -p 2000
+    PING_INLINE: 112650.80 requests per second
+
+    Redis: redis-benchmark -t ping  -q -n 1000000
+    PING_INLINE: 170171.00 requests per second
 
     Testing GET *with* pipelining:
-    > Boiler: redis-benchmark -t get  -q -n 1000000  -p 2000 -P 1000
-    > GET: 881,057.25 requests per second
-    >
-    > Redis: redis-benchmark -t get  -q -n 1000000 -P 1000
-    > GET: 1,605,136.38 requests per second
+    Boiler: redis-benchmark -t get  -q -n 1000000  -p 2000 -P 1000
+    GET: 881,057.25 requests per second
 
-    Of course it's slower than redis, but:
+    Redis: redis-benchmark -t get  -q -n 1000000 -P 1000
+    GET: 1,605,136.38 requests per second
 
-    a. not by a lot (without pipelining at least), compared to the ease of using Go. And of course there's optimizations to be made.
+Of course it's slower than redis, but:
 
-    b. you can save a lot of time by implementing logic that would require several roundtrips in redis inside the database.
+a. not by a lot (without pipelining at least), compared to the ease of using Go. And of course there's optimizations to be made.
 
-    c. since Boiler is not single threaded, it enables you better concurrency, allowing you to do stuff you can't with redis, like operations lasting seconds.
+b. you can save a lot of time by implementing logic that would require several roundtrips in redis inside the database.
+
+c. since Boiler is not single threaded, it enables you better concurrency, allowing you to do stuff you can't with redis, like operations lasting seconds.
 
 
 ## A really short guide to writing a plugin
