@@ -81,7 +81,7 @@ c. since Boiler is not single threaded, it enables you better concurrency, allow
 
 ## A really short guide to writing a plugin
 
- Each plugin must implement the IPlugin interface, and return entries the implement the DataStruct interface. It also declares handlers that follow the db.HandlerFunc signature.
+ Each plugin must implement the Plugin interface, and return entries the implement the DataStruct interface. It also declares handlers that follow the db.HandlerFunc signature.
 
 A plugin registers itself with GetManifest(), that returns a PluginManifest struct.
 
@@ -89,7 +89,7 @@ A plugin registers itself with GetManifest(), that returns a PluginManifest stru
 The IPLugin interface is as follows:
 
 ```go
-type IPlugin interface {
+type Plugin interface {
 
 	//Create an object of the type the plugin is responsible for.
 	//This returns an Entry object, and a string with the textual name of the registered type (e.g. "STRING")

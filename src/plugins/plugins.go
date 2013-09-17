@@ -1,5 +1,5 @@
 //This package contains all the plugins in the system, each with its own package.
-//Each plugin must implement the IPlugin interface, and return entries the implement the DataStruct interface.
+//Each plugin must implement the Plugin interface, and return entries the implement the DataStruct interface.
 //It also declares handlers that follow the db.HandlerFunc signature.
 //
 //A plugin registers itself with GetManifest(), that returns a PluginManifest struct.

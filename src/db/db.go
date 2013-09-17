@@ -76,7 +76,7 @@ type CommandDescriptor struct {
 	MinArgs int
 	MaxArgs int
 	Handler HandlerFunc
-	Owner   IPlugin
+	Owner   Plugin
 
 	//whether the command is a reader, writer or builtin command
 	CommandType int
@@ -91,7 +91,7 @@ type PluginManifest struct {
 }
 
 //The API for an abstract plugin, that creates data structs and registers handlers
-type IPlugin interface {
+type Plugin interface {
 
 	//Create an object of the type the plugin is responsible for.
 	//This returns an Entry object, and a string with the textual name of the registered type (e.g. "STRING")
@@ -191,7 +191,7 @@ type DataBase struct {
 	//this is the incremental type id counter that increases with each type registering
 	maxTypeId uint8
 	// for each type id, we know the "owner" plugin if we need to deserialize or create a new object of that typ
-	pluginsByTypeId map[uint8]*IPlugin
+	pluginsByTypeId map[uint8]*Plugin
 	// mapping of type names to ids
 	typeNamesToIds map[string]uint8
 	// mapping of type ids back to names
@@ -273,7 +273,7 @@ func InitGlobalDataBase(workingDir string, loadDump bool) *DataBase {
 		lockedKeys:      make(map[string]*KeyLock),
 		dictLock:        sync.Mutex{},
 		saveLock:        sync.RWMutex{},
-		pluginsByTypeId: make(map[uint8]*IPlugin),
+		pluginsByTypeId: make(map[uint8]*Plugin),
 		typeIdsToNames:  make(map[uint8]string),
 		typeNamesToIds:  make(map[string]uint8),
 		maxTypeId:       0,
@@ -484,7 +484,7 @@ func (db *DataBase) UnlockKey(key string, mode int) {
 
 }
 
-func (db *DataBase) registerType(owner *IPlugin, name string) (uint8, error) {
+func (db *DataBase) registerType(owner *Plugin, name string) (uint8, error) {
 
 	// lock the dictionary just to make sure no one else is registering a type at the same time.
 	// It shouldn't happen as the database is not started yet, but just in case... :)
@@ -524,7 +524,7 @@ func (db *DataBase) GetTypeId(typeName string) uint8 {
 }
 
 //register the plugins in the database
-func (db *DataBase) RegisterPlugins(plugins ...IPlugin) error {
+func (db *DataBase) RegisterPlugins(plugins ...Plugin) error {
 
 	totalCommands := 0
 	for i := range plugins {
@@ -773,27 +773,28 @@ func (db *DataBase) Dump() (error) {
 
 	ch := make(chan *SerializedEntry)
 	globalEnc := gob.NewEncoder(fp)
-	inProgress := true
 
 	err = globalEnc.Encode(db.State)
 	if err != nil {
 		logging.Panic("Could not save db state: %s", err)
 	}
 	//this function reads back from the channel each serialized entry, and sends it to the file writer
-	go func(inProgress *bool) {
+
+	var dumpWait sync.WaitGroup
+
+	go func(ch chan *SerializedEntry, wg *sync.WaitGroup) {
+		wg.Add(1)
 		defer func() {
 		   e := recover()
 			if e != nil {
 				logging.Warning("Error while dumping: %s", e)
+				wg.Done()
 			}
+
 		}()
 
-		var se *SerializedEntry
-		for *inProgress {
-
-			//read a serialized entry
-			se = <- ch
-
+		saved := 0
+		for se := range ch {
 
 			if se != nil {
 				logging.Debug("Read entry %s", se.Key)
@@ -802,24 +803,27 @@ func (db *DataBase) Dump() (error) {
 				if e != nil {
 					logging.Warning("Error serializing enty: %s", e)
 				}
+				saved++
 			}   else {
 				break
 			}
 		}
 
-		logging.Info("Finished writing to encoder")
-	}(&inProgress)
+		logging.Info("Finished writing %d objects to encoder", saved)
+		wg.Done()
+	}(ch, &dumpWait)
 
 
 
 	err = db.DumpEntries(ch, false)
-	inProgress = false
+
 	close(ch)
 	if err != nil {
 	 	logging.Error("Could not dump database: %s", err)
 		return err
 	}
 
+	dumpWait.Wait()
 	db.changesSinceLastSave = 0
 	db.LastSaveTime = time.Now()
 	logging.Info("Finished BGSAVE in %s", time.Now().Sub(startTime))
