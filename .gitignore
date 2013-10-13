@@ -8,3 +8,4 @@ pkg
 *.o
 *.6
 *.html
+/src/github.com
