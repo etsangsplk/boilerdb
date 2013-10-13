@@ -2,7 +2,7 @@
 out
 tmp
 pkg
-/bin/main
+/bin/*
 /boiler.sublime-project
 /boiler.sublime-workspace
 *.o
