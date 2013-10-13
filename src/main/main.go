@@ -23,6 +23,7 @@ func main() {
 	log.SetPriority(log.Pdebug)
 	log.SetFlags(log.LstdFlags | log.Lpriority)
 	log.Infof("Running on Go %s", runtime.GOROOT())
+
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	///Register all the plugins
