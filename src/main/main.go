@@ -18,8 +18,6 @@ import (
 	"runtime"
 )
 
-///////////////////////////////////////////////////
-
 func main() {
 
 	//logging.SetLevel(logging.ERROR | logging.WARN | logging.CRITICAL | logging.INFO)
