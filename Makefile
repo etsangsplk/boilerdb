@@ -1,6 +1,6 @@
 BIN=$(GOPATH)/bin
 GOFILES=src/*/*.go src/*/*/*.go
-PACKAGES=adapters adapters/redis config db logging main plugins/builtin plugins/hash_table plugins/json plugins/prefix_tree plugins/replication plugins/simple plugins util
+PACKAGES=adapters adapters/redis config db main plugins/builtin plugins/hash_table plugins/json plugins/prefix_tree plugins/replication plugins/simple plugins util
 
 $(BIN)/boilerdb: $(GOFILES)
 	go get main
