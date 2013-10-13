@@ -2,21 +2,13 @@ BIN=$(GOPATH)/bin
 GOFILES=src/*/*.go src/*/*/*.go
 PACKAGES=adapters adapters/redis config db logging main plugins/builtin plugins/hash_table plugins/json plugins/prefix_tree plugins/replication plugins/simple plugins util
 
-$(BIN)/boilerdb: *.go
+$(BIN)/boilerdb: $(GOFILES)
 	go get main
-	go build -o $(BIN)/boilerdb
-
-$(BIN)/test-logger: *.go
-	go test -c logger
-	mv logger.test $(BIN)/test-logger
+	go build -o $(BIN)/boilerdb main
 
 # TODO test more shit!
-test: $(BIN)/test-logger
-ifdef TEST
-	$(BIN)/test-logger -test.run="$(TEST)"
-else
-	$(BIN)/test-logger -test.v
-endif
+test:
+	go test $(PACKAGES)
 
 format:
 	#echo $(GOFILES)
