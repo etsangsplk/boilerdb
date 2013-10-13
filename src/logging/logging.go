@@ -20,27 +20,25 @@
 package logging
 
 import (
-	"log"
 	"fmt"
 	"io"
-	"runtime/debug"
+	"log"
 	"path"
 	"runtime"
+	"runtime/debug"
 )
 
-
-
 const (
-	DEBUG = 1
-	INFO = 2
-	WARNING = 4
-	WARN = 4
-	ERROR = 8
-	CRITICAL  = 16
-	QUIET = ERROR | CRITICAL  //setting for errors only
-	NORMAL = INFO | WARN | ERROR | CRITICAL // default setting - all besides debug
-	ALL = 255
-	NOTHING = 0
+	DEBUG    = 1
+	INFO     = 2
+	WARNING  = 4
+	WARN     = 4
+	ERROR    = 8
+	CRITICAL = 16
+	QUIET    = ERROR | CRITICAL               //setting for errors only
+	NORMAL   = INFO | WARN | ERROR | CRITICAL // default setting - all besides debug
+	ALL      = 255
+	NOTHING  = 0
 )
 
 //default logging level is ALL
@@ -77,13 +75,13 @@ func getContext() (file string, line int) {
 
 //Output debug logging messages
 func Debug(msg string, args ...interface{}) {
-	if level & DEBUG != 0 {
-		log.Printf(fmt.Sprintf("DEBUG: %s",  msg), args...)
+	if level&DEBUG != 0 {
+		log.Printf(fmt.Sprintf("DEBUG: %s", msg), args...)
 	}
 }
 
 //format the message
-func writeMessage(level string, msg string, args ...interface {} ) {
+func writeMessage(level string, msg string, args ...interface{}) {
 	f, l := getContext()
 	log.Printf(fmt.Sprintf("%s @ %s:%d: %s", level, f, l, msg), args...)
 }
@@ -91,7 +89,7 @@ func writeMessage(level string, msg string, args ...interface {} ) {
 //output INFO level messages
 func Info(msg string, args ...interface{}) {
 
-	if level & INFO != 0 {
+	if level&INFO != 0 {
 
 		writeMessage("INFO", msg, args...)
 
@@ -100,21 +98,21 @@ func Info(msg string, args ...interface{}) {
 
 //output WARNING level messages
 func Warning(msg string, args ...interface{}) {
-	if level & WARN != 0 {
+	if level&WARN != 0 {
 		writeMessage("WARNING", msg, args...)
 	}
 }
 
 //output ERROR level messages
 func Error(msg string, args ...interface{}) {
-	if level & ERROR != 0 {
+	if level&ERROR != 0 {
 		writeMessage("ERROR", msg, args...)
 	}
 }
 
 //Output a CRITICAL level message while showing a stack trace
 func Critical(msg string, args ...interface{}) {
-	if level & CRITICAL != 0 {
+	if level&CRITICAL != 0 {
 		writeMessage("CRITICAL", msg, args...)
 		log.Println(string(debug.Stack()))
 	}

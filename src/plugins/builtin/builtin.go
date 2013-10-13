@@ -1,42 +1,38 @@
 /*
 Some built in commands that are not really plugins, such as BGSAVE, EXPIRE, INFO, MONITOR
- */
+*/
 package builtin
 
 import (
-	gob "encoding/gob"
 	"db"
+	gob "encoding/gob"
 
-//	"runtime"
-	"logging"
+	//	"runtime"
 	"fmt"
-	"time"
+	"logging"
 	"strconv"
+	"time"
 )
 
 const BUILTIN = "BUILTIN"
 
+type BuiltinPlugin struct{}
 
-type BuiltinPlugin struct {}
+type BuiltinDataStruct struct{}
 
-type  BuiltinDataStruct struct { }
-
-func (p *BuiltinDataStruct)Serialize(g *gob.Encoder) error {
+func (p *BuiltinDataStruct) Serialize(g *gob.Encoder) error {
 	return nil
 }
 
-
-
 func HandleMONITOR(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 
-
 	sink := db.DB.AddSink(
-				db.CMD_READER | db.CMD_WRITER | db.CMD_SYSTEM,
-				session.Id())
+		db.CMD_READER|db.CMD_WRITER|db.CMD_SYSTEM,
+		session.Id())
 
 	go func() {
 
-		defer func(){
+		defer func() {
 			e := recover()
 			if e != nil {
 				logging.Info("Could not send command to session outchan: %s", e)
@@ -47,14 +43,14 @@ func HandleMONITOR(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Re
 
 		for session.IsRunning {
 
-			cmd := <- sink.Channel
+			cmd := <-sink.Channel
 
 			if cmd != nil {
 
 				now := time.Now()
 
 				if session.IsRunning {
-					session.Send(db.NewResult(fmt.Sprintf("[%d.%d %s] %s", now.Unix(), now.Nanosecond(), session.Addr, cmd.ToString())) )
+					session.Send(db.NewResult(fmt.Sprintf("[%d.%d %s] %s", now.Unix(), now.Nanosecond(), session.Addr, cmd.ToString())))
 				}
 			}
 
@@ -63,7 +59,6 @@ func HandleMONITOR(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Re
 	}()
 	return db.NewResult(db.NewStatus("OK"))
 }
-
 
 // perform BGSAVE - save the DB returning immediately
 func HandleBGSAVE(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
@@ -86,7 +81,6 @@ func HandleBGSAVE(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Res
 //perform blocking save
 func HandleSAVE(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 
-
 	db.DB.Lockdown()
 	defer func() { db.DB.UNLockdown() }()
 
@@ -98,13 +92,11 @@ func HandleSAVE(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 
 	logging.Info("Error saving db: %s", err)
 
-
 	return db.NewResult(db.NewError(db.E_UNKNOWN_ERROR))
 }
 
 //perform blocking save
 func HandleEXPIRE(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
-
 
 	secs, err := strconv.Atoi(string(cmd.Args[0]))
 
@@ -113,7 +105,6 @@ func HandleEXPIRE(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Res
 		return db.NewResult(db.NewError(db.E_INVALID_PARAMS))
 
 	}
-
 
 	when := time.Now().Add(time.Duration(secs) * time.Second)
 
@@ -154,79 +145,74 @@ keys: %d
 	logging.Info("Server stats: %s", ret)
 	return db.NewResult(ret)
 
-
 }
 
-
-
-
-func (p *BuiltinPlugin)LoadObject(buf []byte, t string) *db.Entry {
+func (p *BuiltinPlugin) LoadObject(buf []byte, t string) *db.Entry {
 	return nil
 }
 
-
-func (p *BuiltinPlugin)CreateObject(cmd string) (*db.Entry, string) {
+func (p *BuiltinPlugin) CreateObject(cmd string) (*db.Entry, string) {
 	return nil, ""
 }
 
-func (p *BuiltinPlugin)GetManifest() db.PluginManifest {
+func (p *BuiltinPlugin) GetManifest() db.PluginManifest {
 
-	return db.PluginManifest {
+	return db.PluginManifest{
 
 		Name: BUILTIN,
 
 		Types: make([]string, 0),
 
-		Commands:  []db.CommandDescriptor {
+		Commands: []db.CommandDescriptor{
 			db.CommandDescriptor{
 				CommandName: "INFO",
-				MinArgs: 0,	MaxArgs: 0,
-				Handler: HandleINFO,
+				MinArgs:     0, MaxArgs: 0,
+				Handler:     HandleINFO,
 				CommandType: db.CMD_SYSTEM,
 			},
 			db.CommandDescriptor{
 				CommandName: "SAVE",
-				MinArgs: 0,	MaxArgs: 0,
-				Handler: HandleSAVE,
+				MinArgs:     0, MaxArgs: 0,
+				Handler:     HandleSAVE,
 				CommandType: db.CMD_WRITER,
 			},
 			db.CommandDescriptor{
 				CommandName: "BGSAVE",
-				MinArgs: 0,	MaxArgs: 0,
-				Handler: HandleBGSAVE,
+				MinArgs:     0, MaxArgs: 0,
+				Handler:     HandleBGSAVE,
 				CommandType: db.CMD_READER,
 			},
 			db.CommandDescriptor{
 				CommandName: "EXPIRE",
-				MinArgs: 1,	MaxArgs: 1,
-				Handler: HandleEXPIRE,
+				MinArgs:     1, MaxArgs: 1,
+				Handler:     HandleEXPIRE,
 				CommandType: db.CMD_WRITER,
 			},
 			db.CommandDescriptor{
 				CommandName: "MONITOR",
-				MinArgs: 0,	MaxArgs: 0,
-				Handler: HandleMONITOR,
+				MinArgs:     0, MaxArgs: 0,
+				Handler:     HandleMONITOR,
 				CommandType: db.CMD_SYSTEM,
 			},
-//			db.CommandDescriptor{
-//				CommandName: "SYNC",
-//				MinArgs: 0,	MaxArgs: 0,
-//				Handler: HandleSYNC,
-//				CommandType: db.CMD_SYSTEM,
-//			},
+			//			db.CommandDescriptor{
+			//				CommandName: "SYNC",
+			//				MinArgs: 0,	MaxArgs: 0,
+			//				Handler: HandleSYNC,
+			//				CommandType: db.CMD_SYSTEM,
+			//			},
 		},
 	}
 }
 
+func (p *BuiltinPlugin) String() string {
+	return "BUILTIN"
+}
 
- func (p* BuiltinPlugin) String() string {
-	 return "BUILTIN"
- }
 //init function
-func (p* BuiltinPlugin) Init() error {
+func (p *BuiltinPlugin) Init() error {
 
 	return nil
 }
 
 //shutdown function
-func (p* BuiltinPlugin) Shutdown() { }
+func (p *BuiltinPlugin) Shutdown() {}

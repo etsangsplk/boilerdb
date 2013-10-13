@@ -7,36 +7,32 @@ The included commands are:
 
 	JQUERY [key] [json path]: Get the value of a given node in a JSON object. Use '.' as the path for the root
 
- */
+*/
 package json
+
 import (
+	"bytes"
+	"db"
 	gob "encoding/gob"
 	"encoding/json"
-	"db"
-	"strings"
-	"logging"
-	"bytes"
 	"fmt"
-
+	"logging"
+	"strings"
 )
 
 const T_JSON string = "JSON"
 
-
-func (jq *JsonQuery)Serialize(g *gob.Encoder) error {
+func (jq *JsonQuery) Serialize(g *gob.Encoder) error {
 
 	err := g.Encode(jq)
 
 	return err
 }
 
-
-
 type JSONPlugin struct {
-
 }
 
-func parseJSONPath(path string)[]string {
+func parseJSONPath(path string) []string {
 	arg := strings.Replace(path, "[", ".", -1)
 	arg = strings.Replace(arg, "]", "", -1)
 	arg = strings.TrimRight(arg, ".")
@@ -52,10 +48,9 @@ func HandleJSET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 	dec := json.NewDecoder(strings.NewReader(string(cmd.Args[1])))
 	err := dec.Decode(&data)
 	if err != nil {
-		logging.Info("Error decoding data: %s (%s)", err,string(cmd.Args[1]) )
+		logging.Info("Error decoding data: %s (%s)", err, string(cmd.Args[1]))
 		return db.NewResult(db.NewPluginError("JSON", fmt.Sprintf("Invalid JSON: %s", err)))
 	}
-
 
 	//set the root object
 	if string(cmd.Args[0]) == "." {
@@ -79,7 +74,6 @@ func HandleJGET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 		return nil
 	}
 
-
 	jq := entry.Value.(*JsonQuery)
 	ret, err := json.Marshal(jq.Blob)
 
@@ -89,8 +83,6 @@ func HandleJGET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 	}
 
 	return db.NewResult(string(ret))
-
-
 
 }
 
@@ -110,16 +102,14 @@ func HandleJQUERY(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Res
 	return db.NewResult(ret)
 }
 
+func (p *JSONPlugin) CreateObject(commandName string) (*db.Entry, string) {
 
-
-func (p *JSONPlugin)CreateObject(commandName string) (*db.Entry, string) {
-
-	return &db.Entry{ Value: NewQuery(make(map[string]interface{})) }, T_JSON
+	return &db.Entry{Value: NewQuery(make(map[string]interface{}))}, T_JSON
 
 }
 
 //deserialize and create a db entry
-func (p *JSONPlugin)LoadObject(buf []byte, t string) *db.Entry {
+func (p *JSONPlugin) LoadObject(buf []byte, t string) *db.Entry {
 
 	fmt.Println(t)
 	if t == T_JSON {
@@ -132,61 +122,58 @@ func (p *JSONPlugin)LoadObject(buf []byte, t string) *db.Entry {
 			return nil
 		}
 
-		return &db.Entry{ Value: &s }
+		return &db.Entry{Value: &s}
 
-	}else {
+	} else {
 		logging.Error("Could not load object - invalid type %s", t)
 	}
 
 	return nil
 }
 
-func (p *JSONPlugin)GetManifest() db.PluginManifest {
+func (p *JSONPlugin) GetManifest() db.PluginManifest {
 
-	return db.PluginManifest {
+	return db.PluginManifest{
 
-		Name: "JSON",
+		Name:        "JSON",
 		Description: "A JSON Object store that allows direct getting and setting of values inside a JSON object, without serialization",
 
-		Commands:  []db.CommandDescriptor {
+		Commands: []db.CommandDescriptor{
 			db.CommandDescriptor{
 				CommandName: "JSET",
-				MinArgs: 2,	MaxArgs: 2,
-				Handler: HandleJSET,
+				MinArgs:     2, MaxArgs: 2,
+				Handler:     HandleJSET,
 				CommandType: db.CMD_WRITER,
-				Help: "JSET [key] [json path] [value]: Set the value of a given node in a JSON object. Use '.' as the path for setting the entire object",
+				Help:        "JSET [key] [json path] [value]: Set the value of a given node in a JSON object. Use '.' as the path for setting the entire object",
 			},
 			db.CommandDescriptor{
 				CommandName: "JGET",
-				MinArgs: 0,	MaxArgs: 0,
-				Handler: HandleJGET,
+				MinArgs:     0, MaxArgs: 0,
+				Handler:     HandleJGET,
 				CommandType: db.CMD_READER,
-				Help: "JGET [key] Dump the entire contents of a JSON object",
+				Help:        "JGET [key] Dump the entire contents of a JSON object",
 			},
 			db.CommandDescriptor{
 				CommandName: "JQUERY",
-				MinArgs: 1,	MaxArgs: 1,
-				Handler: HandleJQUERY,
+				MinArgs:     1, MaxArgs: 1,
+				Handler:     HandleJQUERY,
 				CommandType: db.CMD_READER,
-				Help: "JQUERY [key] [json path]: Get the value of a given node in a JSON object. Use '.' as the path for the root",
+				Help:        "JQUERY [key] [json path]: Get the value of a given node in a JSON object. Use '.' as the path for the root",
 			},
-
 		},
-		Types: []string{ T_JSON, },
-
+		Types: []string{T_JSON},
 	}
 }
 
-func (p* JSONPlugin) String() string {
+func (p *JSONPlugin) String() string {
 	return "JSON"
 }
 
-
 //init function
-func (p* JSONPlugin) Init() error {
+func (p *JSONPlugin) Init() error {
 
 	return nil
 }
 
 //shutdown function
-func (p* JSONPlugin) Shutdown() { }
+func (p *JSONPlugin) Shutdown() {}

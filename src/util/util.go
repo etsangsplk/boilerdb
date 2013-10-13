@@ -4,11 +4,11 @@
 package util
 
 import (
-	"sync/atomic"
-	"os"
 	"crypto/sha1"
 	"fmt"
-	)
+	"os"
+	"sync/atomic"
+)
 
 // Wrapper for atomic C.a.S boolean flags
 type AtomicFlag struct {
@@ -16,12 +16,12 @@ type AtomicFlag struct {
 }
 
 // Return True if a flag is set
-func (af *AtomicFlag)IsSet() bool {
+func (af *AtomicFlag) IsSet() bool {
 	return atomic.LoadInt32(&af.value) != 0
 }
 
 // Atomically set the value of the flag, without checking the current state of it
-func (af *AtomicFlag)Set(value bool) {
+func (af *AtomicFlag) Set(value bool) {
 	if value {
 		atomic.StoreInt32(&(af.value), 1)
 	} else {
@@ -30,7 +30,7 @@ func (af *AtomicFlag)Set(value bool) {
 }
 
 //set the value and return the old value
-func (af *AtomicFlag)GetSet(value bool) bool {
+func (af *AtomicFlag) GetSet(value bool) bool {
 
 	//func CompareAndSwapInt32(val *int32, old, new int32) (swapped bool
 
@@ -52,7 +52,6 @@ func (af *AtomicFlag)GetSet(value bool) bool {
 	}
 	return swapped
 
-
 }
 
 // generate a unique id by running SHA1 on /dev/urandom
@@ -66,4 +65,3 @@ func UniqId() string {
 	s := sha1.New()
 	return fmt.Sprintf("%x", s.Sum(b)[:16])
 }
-

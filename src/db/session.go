@@ -1,21 +1,21 @@
-
 package db
 
 import (
-	"logging"
-	"runtime/debug"
-	"net"
 	"config"
 	"fmt"
+	"logging"
+	"net"
+	"runtime/debug"
 	"sync"
 )
+
 type Session struct {
 	InChan    chan *Command
 	outChan   chan *Result
 	db        *DataBase
 	Addr      net.Addr
 	IsRunning bool
-	lock sync.Mutex
+	lock      sync.Mutex
 }
 
 func (s *Session) Id() string {
@@ -25,6 +25,7 @@ func (s *Session) Id() string {
 func (s *Session) String() string {
 	return s.Id()
 }
+
 //create a new session
 func (db *DataBase) NewSession(addr net.Addr) *Session {
 
@@ -39,8 +40,6 @@ func (db *DataBase) NewSession(addr net.Addr) *Session {
 		IsRunning: true,
 	}
 
-
-
 	return ret
 
 }
@@ -48,18 +47,16 @@ func (db *DataBase) NewSession(addr net.Addr) *Session {
 //Run a session while it is open. Read from the input channel and push to the output channel
 func (s *Session) Run() {
 
-
 	defer func() {
 		e := recover()
 		if e != nil {
 			logging.Info("Error running session: %s", e)
 			debug.PrintStack()
 
-
 		}
 	}()
 	for s.IsRunning {
-		cmd := <- s.InChan
+		cmd := <-s.InChan
 
 		if cmd != nil {
 
@@ -70,7 +67,7 @@ func (s *Session) Run() {
 					if e != nil {
 						logging.Error("Runtime erro in plugin: %s. Stack: %s", e, debug.Stack())
 
-						s.outChan <- NewResult(NewPluginError("",  fmt.Sprintf("%s", e)))
+						s.outChan <- NewResult(NewPluginError("", fmt.Sprintf("%s", e)))
 					}
 				}()
 				ret, _ := s.db.HandleCommand(cmd, s)
@@ -79,14 +76,12 @@ func (s *Session) Run() {
 				}
 			}()
 
-
 		}
 
 	}
 
 	logging.Info("Stopped Session %s....\n", s.Addr)
 }
-
 
 // Send a result down a sessions out channel in a safe way
 func (s *Session) Send(res *Result) {
@@ -105,7 +100,7 @@ func (s *Session) Send(res *Result) {
 }
 
 //Receive a message from the session's channel in a safe way
-func (s *Session) Receive() (*Result) {
+func (s *Session) Receive() *Result {
 
 	if s.IsRunning {
 		if s.outChan != nil {
@@ -132,5 +127,3 @@ func (s *Session) Stop() {
 		//close(s.OutChan )
 	}
 }
-
-

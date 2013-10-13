@@ -1,29 +1,27 @@
-
 package db
 
 const (
-	E_OK = 1
-	E_UNKNOWN_ERROR int = 0
-	E_INVALID_COMMAND int = 2
-	E_TYPE_MISMATCH int = 3
-	E_INVALID_PARAMS int = 4
-	E_NOT_ENOUGH_PARAMS int = 5
+	E_OK                     = 1
+	E_UNKNOWN_ERROR      int = 0
+	E_INVALID_COMMAND    int = 2
+	E_TYPE_MISMATCH      int = 3
+	E_INVALID_PARAMS     int = 4
+	E_NOT_ENOUGH_PARAMS  int = 5
 	E_BGSAVE_IN_PROGRESS int = 6
-	E_LOAD_IN_PROGRESS int = 7
-	E_PLUGIN_ERROR int = 8
-	E_TOO_MANY_PARAMS int = 9
+	E_LOAD_IN_PROGRESS   int = 7
+	E_PLUGIN_ERROR       int = 8
+	E_TOO_MANY_PARAMS    int = 9
 )
 
-
-var errorCodes map[int]string = map[int]string {
-	E_UNKNOWN_ERROR: "Unknwon Error",
-	E_INVALID_COMMAND: "Invalid Command",
-	E_TYPE_MISMATCH: "Type Mismatch",
-	E_INVALID_PARAMS: "Invalid parameters for call",
-	E_NOT_ENOUGH_PARAMS: "Not enough params for command",
-	E_TOO_MANY_PARAMS: "Too many params for command",
+var errorCodes map[int]string = map[int]string{
+	E_UNKNOWN_ERROR:      "Unknwon Error",
+	E_INVALID_COMMAND:    "Invalid Command",
+	E_TYPE_MISMATCH:      "Type Mismatch",
+	E_INVALID_PARAMS:     "Invalid parameters for call",
+	E_NOT_ENOUGH_PARAMS:  "Not enough params for command",
+	E_TOO_MANY_PARAMS:    "Too many params for command",
 	E_BGSAVE_IN_PROGRESS: "BGSAVE in progress",
-	E_LOAD_IN_PROGRESS: "LOAD in progress...",
+	E_LOAD_IN_PROGRESS:   "LOAD in progress...",
 
 	//plugin error is no in the map...
 
@@ -32,15 +30,13 @@ var errorCodes map[int]string = map[int]string {
 //Internal error codes with preset messages
 type Error struct {
 	Code int
-
 }
 
 // Custom plugin errors with plugin name and custom message
 type PluginError struct {
 	Error
 	PluginName string
-	Message string
-
+	Message    string
 }
 
 // Statuses with OK error code
@@ -50,14 +46,12 @@ type Status struct {
 }
 
 func NewPluginError(pluginName string, msg string) *PluginError {
-	return &PluginError {
-		Error: Error{E_PLUGIN_ERROR},
+	return &PluginError{
+		Error:      Error{E_PLUGIN_ERROR},
 		PluginName: pluginName,
-		Message: msg,
+		Message:    msg,
 	}
 }
-
-
 
 func (e *Error) ToString() string {
 
@@ -69,11 +63,10 @@ func (e *Error) ToString() string {
 
 }
 
-
 func NewError(code int) *Error {
 	return &Error{code}
 }
 
 func NewStatus(str string) *Status {
-	return &Status{Error {E_OK}, str}
+	return &Status{Error{E_OK}, str}
 }

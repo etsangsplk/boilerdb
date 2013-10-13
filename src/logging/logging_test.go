@@ -3,9 +3,9 @@
 package logging
 
 import (
-	"testing"
 	"fmt"
 	"regexp"
+	"testing"
 )
 
 type TestWriter struct {
@@ -19,6 +19,7 @@ func (w *TestWriter) Reset() {
 func (w *TestWriter) Len() int {
 	return len(w.messages)
 }
+
 //Write(p []byte) (n int, err error)
 func (w *TestWriter) Write(s []byte) (int, error) {
 
@@ -57,8 +58,7 @@ func Test_Logging(t *testing.T) {
 		t.Errorf("Did not log all errors (%d)", w.Len())
 	}
 
-
-	levels := []int {DEBUG, INFO, WARNING, ERROR, CRITICAL}
+	levels := []int{DEBUG, INFO, WARNING, ERROR, CRITICAL}
 
 	for l := range levels {
 
@@ -85,6 +85,3 @@ func Test_Logging(t *testing.T) {
 		t.Errorf("Failed match %s", err)
 	}
 }
-
-
-

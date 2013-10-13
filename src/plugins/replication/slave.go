@@ -2,48 +2,43 @@
 package replication
 
 import (
-	"db"
 	"adapters/redis"
-	"net"
-	"logging"
-	"strconv"
-	"fmt"
-	"strings"
-	"bytes"
 	"bufio"
+	"bytes"
+	"db"
 	"encoding/gob"
+	"fmt"
+	"logging"
+	"net"
+	"strconv"
+	"strings"
 	"time"
-
-
 )
 
 const (
-	STATE_OFFLINE = 0
-	STATE_PENDING_SYNC = 1
+	STATE_OFFLINE          = 0
+	STATE_PENDING_SYNC     = 1
 	STATE_SYNC_IN_PROGRESS = 2
-	STATE_LIVE = 3
+	STATE_LIVE             = 3
 )
 
 const RECONNECT_INTERVAL = 5
 
-var stateMap map[int]string = map[int]string {
-	STATE_OFFLINE: "Offline",
-	STATE_PENDING_SYNC: "Pending Sync",
+var stateMap map[int]string = map[int]string{
+	STATE_OFFLINE:          "Offline",
+	STATE_PENDING_SYNC:     "Pending Sync",
 	STATE_SYNC_IN_PROGRESS: "Sync in progress",
-	STATE_LIVE: "Live",
+	STATE_LIVE:             "Live",
 }
-
 
 //this represents the status of a master in a slave
 type Master struct {
-	State int
-	Host string
-	Port int
-	Conn net.Conn
+	State   int
+	Host    string
+	Port    int
+	Conn    net.Conn
 	decoder *gob.Decoder
-	reader *bufio.ReadWriter
-
-
+	reader  *bufio.ReadWriter
 }
 
 func (m *Master) String() string {
@@ -52,7 +47,7 @@ func (m *Master) String() string {
 }
 
 // Connect to a master
-func (m *Master)Connect() error {
+func (m *Master) Connect() error {
 
 	//make sure we don't connect without disconnecting
 	if m.State != STATE_OFFLINE {
@@ -72,11 +67,8 @@ func (m *Master)Connect() error {
 	return nil
 }
 
-
-
 // Disconnect from a master
-func (m *Master)Disconnect() error {
-
+func (m *Master) Disconnect() error {
 
 	m.State = STATE_OFFLINE
 	err := m.Conn.Close()
@@ -93,8 +85,7 @@ func (m *Master)Disconnect() error {
 const SYNC_OK_MESSAGE = "+SYNC_OK"
 
 //run the replication loop of the master
-func (m *Master)RunReplication()  {
-
+func (m *Master) RunReplication() {
 
 	defer func() {
 		err := recover()
@@ -110,7 +101,7 @@ func (m *Master)RunReplication()  {
 
 	redis.SerializeResponse(&db.Command{"SYNC", "", make([][]byte, 0)}, writer)
 	writer.Flush()
-	mockSession :=  db.DB.NewSession(currentMaster.Conn.LocalAddr())
+	mockSession := db.DB.NewSession(currentMaster.Conn.LocalAddr())
 	mockSession.InChan = nil
 	for m.State != STATE_OFFLINE {
 		//read an parse the request
@@ -122,7 +113,7 @@ func (m *Master)RunReplication()  {
 		}
 
 		//got a status - could be OK and could be
-		if  cmd.Command[0] == '+' {
+		if cmd.Command[0] == '+' {
 			if cmd.Command == SYNC_OK_MESSAGE {
 				logging.Info("Received sync ok message!")
 				currentMaster.State = STATE_LIVE
@@ -132,13 +123,12 @@ func (m *Master)RunReplication()  {
 		} else if cmd.Command[0] == '-' {
 			logging.Warning("Got error message as command: %s", cmd.Command)
 			continue
-		}  else {
+		} else {
 			_, er := db.DB.HandleCommand(cmd, mockSession)
 			if er != nil {
 				logging.Warning("Error handling command: %s", er)
 			}
 		}
-
 
 	}
 
@@ -150,7 +140,6 @@ func (m *Master)RunReplication()  {
 }
 
 var currentMaster *Master = nil
-
 
 // Disconnect the slave from the current master
 func disconnectMaster() {
@@ -173,12 +162,10 @@ func disconnectMaster() {
 		logging.Info("Disconnected master")
 	}
 
-
 }
 
 // Connect to a new master
 func connectToMaster(host string, port int) error {
-
 
 	logging.Info("Connecting to master %s:%d", host, port)
 	//check to see if we already have a master
@@ -194,11 +181,10 @@ func connectToMaster(host string, port int) error {
 
 	}
 
-
 	m := &Master{
-		Host: host,
-		Port: port,
-		State: STATE_OFFLINE,
+		Host:    host,
+		Port:    port,
+		State:   STATE_OFFLINE,
 		decoder: nil,
 	}
 
@@ -212,14 +198,10 @@ func connectToMaster(host string, port int) error {
 
 	go currentMaster.RunReplication()
 
-
 	return nil
 }
 
-
-
 func (m *Master) ReadValue(buf []byte) {
-
 
 	if m.decoder == nil {
 
@@ -237,10 +219,7 @@ func (m *Master) ReadValue(buf []byte) {
 
 	}
 
-
 }
-
-
 
 func HandleLOAD(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 
@@ -256,9 +235,9 @@ func HandleLOAD(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 	}
 
 	var se db.SerializedEntry = db.SerializedEntry{
-		Key: cmd.Key,
-		Type: string(cmd.Args[0]),
-		Len: uint64(l),
+		Key:   cmd.Key,
+		Type:  string(cmd.Args[0]),
+		Len:   uint64(l),
 		Bytes: cmd.Args[2],
 	}
 
@@ -296,7 +275,6 @@ func runMasterWatchdogLoop() {
 
 }
 
-
 //drop the current master and stop trying...
 func leaveCurrentMaster() {
 
@@ -316,12 +294,10 @@ func HandleSLAVEOF(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Re
 	}
 	port, err := strconv.Atoi(string(cmd.Args[0]))
 	//valiate port number
-	if err !=nil || port < 1 || port > 65535 {
+	if err != nil || port < 1 || port > 65535 {
 
 		return db.NewResult(db.NewPluginError("REPLICATION", "Invalid port number"))
 	}
-
-
 
 	err = connectToMaster(address, port)
 
@@ -332,5 +308,3 @@ func HandleSLAVEOF(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Re
 
 	return db.ResultOK()
 }
-
-

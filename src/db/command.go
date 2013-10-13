@@ -1,10 +1,9 @@
-
 package db
 
 import (
-	"strings"
-	"fmt"
 	"bytes"
+	"fmt"
+	"strings"
 )
 
 //the command struct
@@ -15,13 +14,12 @@ type Command struct {
 }
 
 // Create a new command object
-func NewCommand(cmd, key string, args... []byte) *Command{
-
+func NewCommand(cmd, key string, args ...[]byte) *Command {
 
 	return &Command{cmd, key, args}
 
-
 }
+
 // Check if a command has an argument (e.g. "WITHSCORES").
 // case insensitive
 func (cmd *Command) HasArg(s string) bool {
@@ -50,4 +48,3 @@ func (cmd *Command) ToString() string {
 	return fmt.Sprintf("%s%s%s", cmd.Command, keyStr, argStr)
 
 }
-

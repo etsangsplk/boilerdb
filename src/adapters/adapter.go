@@ -8,8 +8,8 @@
 package adapters
 
 import (
-	"net"
 	"db"
+	"net"
 )
 
 type Adapter interface {

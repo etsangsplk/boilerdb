@@ -7,16 +7,13 @@
  */
 package db
 
-
 import (
-	"testing"
 	"net"
+	"testing"
 	"time"
 
 	//"fmt"
 )
-
-
 
 func Test_Database(t *testing.T) {
 
@@ -31,7 +28,7 @@ func Test_Database(t *testing.T) {
 
 	//create test command
 	cmd := NewCommand("SET", "foo", []byte("bar"))
-	if cmd ==nil || cmd.Command != "SET" ||
+	if cmd == nil || cmd.Command != "SET" ||
 		cmd.Key != "foo" ||
 		len(cmd.Args) != 1 {
 		t.Errorf("Failed creating command")
@@ -66,14 +63,13 @@ func Test_Database(t *testing.T) {
 
 	v := r.Value.(string)
 
-	if v!=st {
+	if v != st {
 		t.Errorf("Got invalid response when receiving from session. expected %s, got %s", st, v)
 	}
 
-
 	//Test db.HandleCommand
 
-	res,  err := d.HandleCommand(cmd, s)
+	res, err := d.HandleCommand(cmd, s)
 	if err != nil || res == nil {
 		t.Errorf("Failed processing command")
 	}
@@ -127,11 +123,10 @@ func Test_Database(t *testing.T) {
 	//test expiration
 
 	//set the value again
-	res,  err = d.HandleCommand(cmd, s)
+	res, err = d.HandleCommand(cmd, s)
 	if err != nil || res == nil {
 		t.Errorf("Failed processing command SET")
 	}
-
 
 	entry := d.dictionary[cmd.Key]
 	when := time.Now().Add(1 * time.Second)
@@ -151,7 +146,7 @@ func Test_Database(t *testing.T) {
 		t.Fail()
 	}
 	if err != nil {
-			t.Errorf("Got invalid type for result: %s", res.Value)
+		t.Errorf("Got invalid type for result: %s", res.Value)
 	}
 
 }

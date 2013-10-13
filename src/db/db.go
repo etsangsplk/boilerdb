@@ -32,6 +32,7 @@ func NewResult(i interface{}) *Result {
 func ResultOK() *Result {
 	return NewResult(NewStatus("OK"))
 }
+
 //
 //const (
 //	T_NONE    uint32 = 0
@@ -166,8 +167,6 @@ func (s *CommandSink) Close() {
 // The core database itself
 //
 type DataBase struct {
-
-
 	WorkingDirectory string
 	//the command registrry
 	commands map[string]*CommandDescriptor
@@ -203,7 +202,7 @@ type DataBase struct {
 	LastSaveTime         time.Time
 	changesSinceLastSave int64
 	//tmp keys for bgsaving
-	bgsaveTempKeys 		 map[string]*SerializedEntry
+	bgsaveTempKeys map[string]*SerializedEntry
 
 	DataLoadInProgress util.AtomicFlag
 	Running            util.AtomicFlag
@@ -220,13 +219,12 @@ type DataBase struct {
 	State struct {
 		//master instance id for replication
 		//this is used for the data and created when there is no data available
-		DataInstanceId	string
+		DataInstanceId string
 
-		ServerId 		string
+		ServerId string
 		//rolling transaction id. we always start on 0
 		LastTransactionId uint64
 	}
-
 
 	Stats struct {
 		//number of current sessions
@@ -238,7 +236,7 @@ type DataBase struct {
 	}
 }
 
-func(d *DataBase ) initState() {
+func (d *DataBase) initState() {
 
 	d.State.DataInstanceId = util.UniqId()
 	d.State.LastTransactionId = 0
@@ -249,7 +247,6 @@ func(d *DataBase ) initState() {
 }
 
 func (d *DataBase) IncrementTransactionId() uint64 {
-
 
 	return atomic.AddUint64(&(d.State.LastTransactionId), 1)
 }
@@ -268,21 +265,21 @@ func InitGlobalDataBase(workingDir string, loadDump bool) *DataBase {
 	DB = &DataBase{
 
 		WorkingDirectory: workingDir,
-		commands:        make(map[string]*CommandDescriptor),
-		dictionary:      make(map[string]*Entry),
-		lockedKeys:      make(map[string]*KeyLock),
-		dictLock:        sync.Mutex{},
-		saveLock:        sync.RWMutex{},
-		pluginsByTypeId: make(map[uint8]*Plugin),
-		typeIdsToNames:  make(map[uint8]string),
-		typeNamesToIds:  make(map[string]uint8),
-		maxTypeId:       0,
-		currentSaveId:   0,
-		commandSinks:    make(map[string]*CommandSink),
-		sinkChan:        make(chan *Command, 10),
-		expiredKeys:     make(map[string]time.Time),
-		LastSaveTime:    time.Now(),
-		bgsaveTempKeys:  make(map[string]*SerializedEntry),
+		commands:         make(map[string]*CommandDescriptor),
+		dictionary:       make(map[string]*Entry),
+		lockedKeys:       make(map[string]*KeyLock),
+		dictLock:         sync.Mutex{},
+		saveLock:         sync.RWMutex{},
+		pluginsByTypeId:  make(map[uint8]*Plugin),
+		typeIdsToNames:   make(map[uint8]string),
+		typeNamesToIds:   make(map[string]uint8),
+		maxTypeId:        0,
+		currentSaveId:    0,
+		commandSinks:     make(map[string]*CommandSink),
+		sinkChan:         make(chan *Command, 10),
+		expiredKeys:      make(map[string]time.Time),
+		LastSaveTime:     time.Now(),
+		bgsaveTempKeys:   make(map[string]*SerializedEntry),
 	}
 
 	DB.initState()
@@ -560,8 +557,6 @@ func (db *DataBase) RegisterPlugins(plugins ...Plugin) error {
 
 		}
 
-
-
 	}
 	logging.Info("Registered %d plugins and %d commands\n", len(plugins), totalCommands)
 	db.Stats.RegisteredCommands = totalCommands
@@ -668,13 +663,13 @@ func (db *DataBase) HandleCommand(cmd *Command, session *Session) (*Result, erro
 			//we need to persist this entry to the temp persist dictionary! it is about to be persisted
 			if commandDesc.CommandType == CMD_WRITER &&
 				db.BGsaveInProgress.IsSet() && entry.saveId != db.currentSaveId {
-					serialized, err := db.serializeEntry(entry, cmd.Key)
-					if err == nil {
-						//logging.Info("Temp persisted %s", cmd.Key)
-						db.dictLock.Lock()
-						db.bgsaveTempKeys[cmd.Key] = serialized
-						db.dictLock.Unlock()
-					}
+				serialized, err := db.serializeEntry(entry, cmd.Key)
+				if err == nil {
+					//logging.Info("Temp persisted %s", cmd.Key)
+					db.dictLock.Lock()
+					db.bgsaveTempKeys[cmd.Key] = serialized
+					db.dictLock.Unlock()
+				}
 
 			}
 
@@ -714,7 +709,7 @@ func (db *DataBase) multiplexCommandsToSinks() {
 		for i := range db.commandSinks {
 
 			sink, ok := db.commandSinks[i]
-			if ok && (sink.CommandType & db.CommandType(cmd.Command)) != 0 {
+			if ok && (sink.CommandType&db.CommandType(cmd.Command)) != 0 {
 				sink.PushCommand(cmd)
 
 			}
@@ -744,7 +739,7 @@ func (db *DataBase) serializeEntry(entry *Entry, k string) (*SerializedEntry, er
 }
 
 //dump the database to disk, in a non blocking mode
-func (db *DataBase) Dump() (error) {
+func (db *DataBase) Dump() error {
 
 	if db.DataLoadInProgress.IsSet() {
 		logging.Debug("Data Load In Progress!")
@@ -760,11 +755,10 @@ func (db *DataBase) Dump() (error) {
 	//make sure we release the save flag
 	defer func() { db.BGsaveInProgress.Set(false) }()
 
-
 	startTime := time.Now()
 	logging.Info("Starting BGSAVE...")
 	//open the dump file for writing
-	fp, err := os.Create(fmt.Sprintf("%s/%s",db.WorkingDirectory, "dump.bdb"))
+	fp, err := os.Create(fmt.Sprintf("%s/%s", db.WorkingDirectory, "dump.bdb"))
 	if err != nil {
 		logging.Error("Could not save to file: %s", err)
 		return err
@@ -785,7 +779,7 @@ func (db *DataBase) Dump() (error) {
 	go func(ch chan *SerializedEntry, wg *sync.WaitGroup) {
 		wg.Add(1)
 		defer func() {
-		   e := recover()
+			e := recover()
 			if e != nil {
 				logging.Warning("Error while dumping: %s", e)
 				wg.Done()
@@ -799,12 +793,12 @@ func (db *DataBase) Dump() (error) {
 			if se != nil {
 				logging.Debug("Read entry %s", se.Key)
 				//encode it
-				e:= globalEnc.Encode(se)
+				e := globalEnc.Encode(se)
 				if e != nil {
 					logging.Warning("Error serializing enty: %s", e)
 				}
 				saved++
-			}   else {
+			} else {
 				break
 			}
 		}
@@ -813,13 +807,11 @@ func (db *DataBase) Dump() (error) {
 		wg.Done()
 	}(ch, &dumpWait)
 
-
-
 	err = db.DumpEntries(ch, false)
 
 	close(ch)
 	if err != nil {
-	 	logging.Error("Could not dump database: %s", err)
+		logging.Error("Could not dump database: %s", err)
 		return err
 	}
 
@@ -830,10 +822,9 @@ func (db *DataBase) Dump() (error) {
 	return nil
 }
 
-
 //dump the database to a writer, in a non blocking mode
 // NOTE: this function assumes you've done the proper locking elsewhere
-func (db *DataBase) DumpEntries(dumpChan chan *SerializedEntry, doLock bool) (error) {
+func (db *DataBase) DumpEntries(dumpChan chan *SerializedEntry, doLock bool) error {
 
 	if doLock {
 		if db.DataLoadInProgress.IsSet() {
@@ -852,13 +843,11 @@ func (db *DataBase) DumpEntries(dumpChan chan *SerializedEntry, doLock bool) (er
 	}
 	db.dictLock.Lock()
 
-
 	saveId := db.currentSaveId
 	db.currentSaveId++
 	db.dictLock.Unlock()
 
 	startTime := time.Now()
-
 
 	for k := range db.dictionary {
 
@@ -891,18 +880,16 @@ func (db *DataBase) DumpEntries(dumpChan chan *SerializedEntry, doLock bool) (er
 			logging.Info("Could not serialize entry %s: %s", entry, err)
 			continue
 		}
-		dumpChan  <- serialized
-
+		dumpChan <- serialized
 
 	}
 	//TODO: iterate the temp dictionary for deleted keys
 
 	logging.Info("Finished Dump in %s", time.Now().Sub(startTime))
-	return  nil
+	return nil
 }
 
 func (db *DataBase) LoadSerializedEntry(se *SerializedEntry) error {
-
 
 	typeId, ok := db.typeNamesToIds[se.Type]
 	if !ok {
@@ -925,6 +912,7 @@ func (db *DataBase) LoadSerializedEntry(se *SerializedEntry) error {
 
 	return nil
 }
+
 // Load the database from a dump file, as specified in the config file
 // This disallows commands during load
 func (db *DataBase) LoadDump() error {
@@ -946,8 +934,6 @@ func (db *DataBase) LoadDump() error {
 
 	db.saveLock.RLock()
 	defer db.saveLock.RUnlock()
-
-
 
 	dec := gob.NewDecoder(fp)
 	var se SerializedEntry
@@ -974,5 +960,3 @@ func (db *DataBase) LoadDump() error {
 	logging.Info("Finished dump load. Loaded %d objects from dump", nLoaded)
 	return nil
 }
-
-

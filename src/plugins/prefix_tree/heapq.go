@@ -50,4 +50,3 @@ func (pq PriorityQueue) Swap(i, j int) {
 	pq[i].index = i
 	pq[j].index = j
 }
-

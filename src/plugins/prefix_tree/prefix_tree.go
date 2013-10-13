@@ -2,47 +2,42 @@
 This plugin lets you store keys in a prefix tree, and do a prefix search on them.
 
 Use PSET [key] [value] [score] to add values to the prefix tree in [key], and PSEARCH [key] prefix to search it.
- */
+*/
 package prefix_tree
 
 import (
+	"bytes"
 	"db"
 	gob "encoding/gob"
-	"strconv"
 	"fmt"
 	"logging"
-	"bytes"
+	"strconv"
 )
 
 type PrefixTree struct {
-
 	Root *Node
 }
 
-func (ht *PrefixTree)Serialize(g *gob.Encoder) error {
+func (ht *PrefixTree) Serialize(g *gob.Encoder) error {
 
 	err := g.Encode(ht)
-	
+
 	return err
 }
 
-
-
 type PrefixTreePlugin struct {
-
-
 }
 
 // set handler. sets (or replaces) a key in the tree with a given score
 func HandlePSET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 
 	pt := entry.Value.(*PrefixTree)
-	
+
 	score, err := strconv.ParseFloat(string(cmd.Args[1]), 32)
 	if err != nil {
 		return db.NewResult(db.NewError(db.E_INVALID_PARAMS))
 	}
-	pt.Root.set(string(cmd.Args[0]), float32(score) , "")
+	pt.Root.set(string(cmd.Args[0]), float32(score), "")
 
 	return db.NewResult(db.NewStatus("OK"))
 
@@ -57,7 +52,6 @@ func HandlePINCRBY(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Re
 		return db.NewResult(db.NewError(db.E_INVALID_PARAMS))
 	}
 	newScore := pt.Root.increment(string(cmd.Args[0]), float32(score))
-	
 
 	return db.NewResult(fmt.Sprintf("%f", newScore))
 
@@ -83,7 +77,7 @@ func HandlePSEARCH(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Re
 		withScores := cmd.HasArg("WITHSCORES")
 
 		//if we do, we allocate a double list, where one member is the value and the next is its score
-		if  withScores {
+		if withScores {
 			step = 2
 			num *= step
 		}
@@ -91,7 +85,7 @@ func HandlePSEARCH(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Re
 
 		//put the relevant values in place
 		n := 0
-		for i := 0; i < num; i+=step {
+		for i := 0; i < num; i += step {
 			if res[n] != nil {
 				ret[i] = res[n].Key
 			}
@@ -103,10 +97,9 @@ func HandlePSEARCH(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Re
 		}
 
 		r = db.NewResult(ret)
-	}	else {
-	    r = nil
+	} else {
+		r = nil
 	}
-
 
 	return r
 }
@@ -124,10 +117,9 @@ func HandlePGET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 	var r *db.Result
 	if record != nil {
 		r = db.NewResult([2]string{record.Key, fmt.Sprintf("%f", record.Score)})
-	}	else {
-	    r = db.NewResult("")
+	} else {
+		r = db.NewResult("")
 	}
-
 
 	return r
 }
@@ -135,19 +127,18 @@ func HandlePGET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 //identifier for prefix tree
 const T_PREFIX_TREE = "PREFIX_TREE"
 
-
 //callback for the database to allocate a new prefix tree
-func (p *PrefixTreePlugin)CreateObject(command string) (*db.Entry, string) {
+func (p *PrefixTreePlugin) CreateObject(command string) (*db.Entry, string) {
 
 	Root := newNode(0, 0)
 
-	ret := &db.Entry{ Value: &PrefixTree{Root} }
+	ret := &db.Entry{Value: &PrefixTree{Root}}
 
 	return ret, T_PREFIX_TREE
 }
 
 // de-serialize callback (to be implemented...)
-func (p *PrefixTreePlugin)LoadObject(buf []byte, t string) *db.Entry {
+func (p *PrefixTreePlugin) LoadObject(buf []byte, t string) *db.Entry {
 	if t == T_PREFIX_TREE {
 
 		var pt PrefixTree
@@ -159,7 +150,7 @@ func (p *PrefixTreePlugin)LoadObject(buf []byte, t string) *db.Entry {
 			return nil
 		}
 
-		return &db.Entry{  Value: &pt }
+		return &db.Entry{Value: &pt}
 
 	}
 	logging.Info("Invalid type %s. Could not deserialize", t)
@@ -167,37 +158,37 @@ func (p *PrefixTreePlugin)LoadObject(buf []byte, t string) *db.Entry {
 }
 
 //the commands exposed by this plugin and their handlers
-func (p *PrefixTreePlugin)GetManifest() db.PluginManifest {
+func (p *PrefixTreePlugin) GetManifest() db.PluginManifest {
 
-	return db.PluginManifest {
+	return db.PluginManifest{
 
 		Name: "PREFIX_TREE",
 
-		Types: []string{T_PREFIX_TREE,},
+		Types: []string{T_PREFIX_TREE},
 
-		Commands:  []db.CommandDescriptor {
+		Commands: []db.CommandDescriptor{
 			db.CommandDescriptor{
 				CommandName: "PSET",
-				MinArgs: 2,	MaxArgs: 2,
-				Handler: HandlePSET,
+				MinArgs:     2, MaxArgs: 2,
+				Handler:     HandlePSET,
 				CommandType: db.CMD_WRITER,
 			},
 			db.CommandDescriptor{
 				CommandName: "PINCRBY",
-				MinArgs: 2,	MaxArgs: 2,
-				Handler: HandlePINCRBY,
+				MinArgs:     2, MaxArgs: 2,
+				Handler:     HandlePINCRBY,
 				CommandType: db.CMD_WRITER,
 			},
 			db.CommandDescriptor{
 				CommandName: "PSEARCH",
-				MinArgs: 1,	MaxArgs: 2,
-				Handler: HandlePSEARCH,
+				MinArgs:     1, MaxArgs: 2,
+				Handler:     HandlePSEARCH,
 				CommandType: db.CMD_READER,
 			},
 			db.CommandDescriptor{
 				CommandName: "PGET",
-				MinArgs: 1,	MaxArgs: 1,
-				Handler: HandlePGET,
+				MinArgs:     1, MaxArgs: 1,
+				Handler:     HandlePGET,
 				CommandType: db.CMD_READER,
 			},
 		},
@@ -205,16 +196,15 @@ func (p *PrefixTreePlugin)GetManifest() db.PluginManifest {
 
 }
 
-
-func (p* PrefixTreePlugin) String() string {
+func (p *PrefixTreePlugin) String() string {
 	return "PREFIX_TREE"
 }
 
 //init function
-func (p* PrefixTreePlugin) Init() error {
+func (p *PrefixTreePlugin) Init() error {
 
 	return nil
 }
 
 //shutdown function
-func (p* PrefixTreePlugin) Shutdown() { }
+func (p *PrefixTreePlugin) Shutdown() {}

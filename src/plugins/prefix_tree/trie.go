@@ -9,7 +9,6 @@ import (
 
 )
 
-
 type Record struct {
 	Key string
 	//value string
@@ -19,7 +18,6 @@ type Record struct {
 func (r Record) GetScore() float32 {
 	return r.Score
 }
-
 
 type Node struct {
 	Char uint8
@@ -60,7 +58,7 @@ func (n *Node) _findChild(char uint8) (*Node, bool) {
 func (n *Node) set(key string, score float32, value string) {
 
 	current := n
-	//find or create the node to put this record on 
+	//find or create the node to put this record on
 	for pos := 0; pos < len(key); pos++ {
 
 		next, found := current._findChild(key[pos])
@@ -147,7 +145,7 @@ func (n *Node) get(key string) *Record {
 			//fmt.Printf("Following node %c pos %d\n", next.Char, next.pos)
 			current = next
 
-		} else { //this is a dead end! yield 
+		} else { //this is a dead end! yield
 
 			return nil
 		}
@@ -162,8 +160,6 @@ type RecordList struct {
 	records []string
 }
 
-
-
 // Perform a prefix search on the tree
 // @param prefix the prefix to search
 // @param withScores if set to true - we return the scores as part of the reply
@@ -177,7 +173,7 @@ func (n *Node) prefixSearch(prefix string) ([]*Record, int) {
 	current := n
 	for pos := 0; pos < len(prefix); pos++ {
 
-//		fmt.Printf("Level %d node %c, len %d\n", pos, current.Char, len(current.Children))
+		//		fmt.Printf("Level %d node %c, len %d\n", pos, current.Char, len(current.Children))
 		next, found := current._findChild(prefix[pos])
 		if found {
 
@@ -185,7 +181,6 @@ func (n *Node) prefixSearch(prefix string) ([]*Record, int) {
 			current = next
 
 		} else {
-
 
 			//fmt.Printf("Could not find anything for prefix %s\n", prefix)
 			return nil, 0
@@ -232,7 +227,7 @@ func (n *Node) prefixSearch(prefix string) ([]*Record, int) {
 
 	ret := make([]*Record, num)
 
-	for i := 0; i < num && len(pq) > 0; i++{
+	for i := 0; i < num && len(pq) > 0; i++ {
 		item := heap.Pop(&pq).(*Item)
 		if item != nil {
 			ret[num-i-1] = item.value.(*Record)
@@ -241,5 +236,5 @@ func (n *Node) prefixSearch(prefix string) ([]*Record, int) {
 	}
 
 	return ret, max
-	
+
 }

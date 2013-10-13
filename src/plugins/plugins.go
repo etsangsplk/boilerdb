@@ -103,4 +103,3 @@
 	func (p* DummyPlugin) Shutdown() { }
 */
 package plugins
-

@@ -1,35 +1,31 @@
 /*
 Simple GET/SET/DELETE implementation of strings
- */
+*/
 package simple
 
 import (
 	//	"fmt"
 	"db"
-//	"io"
+	//	"io"
+	"bytes"
 	gob "encoding/gob"
 	"logging"
-	"bytes"
 )
-
 
 type SimpleStruct struct {
 	Val string
 }
 
-func (ht *SimpleStruct)Serialize(g *gob.Encoder) error {
+func (ht *SimpleStruct) Serialize(g *gob.Encoder) error {
 
 	err := g.Encode(ht)
 
 	return err
 }
 
-
 const T_STRING = "STRING"
 
 type SimplePlugin struct {
-
-
 }
 
 func HandleSET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
@@ -54,7 +50,6 @@ func HandleGET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result
 
 func HandleEXISTS(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 
-
 	return db.NewResult(entry != nil)
 }
 
@@ -62,15 +57,15 @@ func HandlePING(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 	return db.NewResult("PONG")
 }
 
-func (p *SimplePlugin)CreateObject(commandName string) (*db.Entry, string) {
+func (p *SimplePlugin) CreateObject(commandName string) (*db.Entry, string) {
 
-	ret := &db.Entry{ Value: &SimpleStruct{} }
+	ret := &db.Entry{Value: &SimpleStruct{}}
 
 	return ret, T_STRING
 }
 
 //deserialize and create a db entry
-func (p *SimplePlugin)LoadObject(buf []byte, typeName string) *db.Entry {
+func (p *SimplePlugin) LoadObject(buf []byte, typeName string) *db.Entry {
 
 	if typeName == T_STRING {
 		var s SimpleStruct
@@ -82,8 +77,7 @@ func (p *SimplePlugin)LoadObject(buf []byte, typeName string) *db.Entry {
 			return nil
 		}
 
-		return &db.Entry{ Value: &s }
-
+		return &db.Entry{Value: &s}
 
 	} else {
 		logging.Warning("Could not load value, invalid type %d", typeName)
@@ -92,55 +86,53 @@ func (p *SimplePlugin)LoadObject(buf []byte, typeName string) *db.Entry {
 
 }
 
-
 // Get the plugin manifest for the simple plugin
-func (p *SimplePlugin)GetManifest() db.PluginManifest {
+func (p *SimplePlugin) GetManifest() db.PluginManifest {
 
-	return db.PluginManifest {
+	return db.PluginManifest{
 
-		Name: "SIMPLE",
-		Types: []string{ T_STRING, },
-		Commands:  []db.CommandDescriptor {
+		Name:  "SIMPLE",
+		Types: []string{T_STRING},
+		Commands: []db.CommandDescriptor{
 			db.CommandDescriptor{
 				CommandName: "SET",
-				MinArgs: 1,	MaxArgs: 1,
-				Handler: HandleSET,
+				MinArgs:     1, MaxArgs: 1,
+				Handler:     HandleSET,
 				CommandType: db.CMD_WRITER,
 			},
 			db.CommandDescriptor{
 				CommandName: "GET",
-				MinArgs: 0,	MaxArgs: 0,
-				Handler: HandleGET,
+				MinArgs:     0, MaxArgs: 0,
+				Handler:     HandleGET,
 				CommandType: db.CMD_READER,
 			},
 			db.CommandDescriptor{
 				CommandName: "PING",
-				MinArgs: 0,	MaxArgs: 0,
-				Handler: HandlePING,
+				MinArgs:     0, MaxArgs: 0,
+				Handler:     HandlePING,
 				CommandType: db.CMD_READER,
 			},
 			db.CommandDescriptor{
 				CommandName: "EXISTS",
-				MinArgs: 0,	MaxArgs: 0,
-				Handler: HandleEXISTS,
+				MinArgs:     0, MaxArgs: 0,
+				Handler:     HandleEXISTS,
 				CommandType: db.CMD_READER,
 			},
 		},
-
-
 	}
 
 }
+
 // String representation of the plugin to support %s formatting
-func (p* SimplePlugin) String() string {
+func (p *SimplePlugin) String() string {
 	return "SIMPLE"
 }
 
 //init function
-func (p* SimplePlugin) Init() error {
+func (p *SimplePlugin) Init() error {
 
 	return nil
 }
 
 //shutdown function
-func (p* SimplePlugin) Shutdown() { }
+func (p *SimplePlugin) Shutdown() {}

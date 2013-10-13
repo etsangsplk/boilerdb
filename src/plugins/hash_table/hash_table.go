@@ -5,29 +5,24 @@ This example plugin implements some of the H* commands of redis:
 package hash_table
 
 import (
-//	"fmt"
-	"db"
-	"logging"
+	//	"fmt"
 	"bytes"
+	"db"
 	gob "encoding/gob"
+	"logging"
 )
 
-
 type HashTableStruct struct {
-
 	Table map[string][]byte
 }
 
-func (ht *HashTableStruct)Serialize(g *gob.Encoder) error {
+func (ht *HashTableStruct) Serialize(g *gob.Encoder) error {
 
 	err := g.Encode(ht)
 	return err
 }
 
-
 type HashTablePlugin struct {
-
-
 }
 
 func HandleHSET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
@@ -54,12 +49,12 @@ func HandleHGETALL(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Re
 
 const T_HASHTABLE = "HASHTABLE"
 
-func (p *HashTablePlugin)CreateObject(commandName string) (*db.Entry, string) {
+func (p *HashTablePlugin) CreateObject(commandName string) (*db.Entry, string) {
 
-	return &db.Entry{ Value: &HashTableStruct{make(map[string][]byte)} }, T_HASHTABLE
+	return &db.Entry{Value: &HashTableStruct{make(map[string][]byte)}}, T_HASHTABLE
 }
 
-func (p *HashTablePlugin)LoadObject(buf []byte, t string)  *db.Entry {
+func (p *HashTablePlugin) LoadObject(buf []byte, t string) *db.Entry {
 
 	if t == T_HASHTABLE {
 
@@ -72,56 +67,53 @@ func (p *HashTablePlugin)LoadObject(buf []byte, t string)  *db.Entry {
 			return nil
 		}
 
-		return &db.Entry{ Value: &ht }
+		return &db.Entry{Value: &ht}
 
 	}
 	logging.Error("Invalid type %u. Could not deserialize", t)
 	return nil
 }
 
+func (p *HashTablePlugin) GetManifest() db.PluginManifest {
 
-
-
-func (p *HashTablePlugin)GetManifest() db.PluginManifest {
-
-
-	return db.PluginManifest {
+	return db.PluginManifest{
 
 		Name: T_HASHTABLE,
 
-		Types: []string{ T_HASHTABLE, },
+		Types: []string{T_HASHTABLE},
 
-		Commands:  []db.CommandDescriptor {
+		Commands: []db.CommandDescriptor{
 			db.CommandDescriptor{
 				CommandName: "HSET",
-				MinArgs: 2,	MaxArgs: 2,
-				Handler: HandleHSET,
+				MinArgs:     2, MaxArgs: 2,
+				Handler:     HandleHSET,
 				CommandType: db.CMD_WRITER,
 			},
 			db.CommandDescriptor{
 				CommandName: "HGET",
-				MinArgs: 1,	MaxArgs: 1,
-				Handler: HandleHGET,
+				MinArgs:     1, MaxArgs: 1,
+				Handler:     HandleHGET,
 				CommandType: db.CMD_READER,
 			},
 			db.CommandDescriptor{
 				CommandName: "HGETALL",
-				MinArgs: 0,	MaxArgs: 0,
-				Handler: HandleHGETALL,
+				MinArgs:     0, MaxArgs: 0,
+				Handler:     HandleHGETALL,
 				CommandType: db.CMD_READER,
 			},
 		},
 	}
 }
 
-func (p* HashTablePlugin) String() string {
+func (p *HashTablePlugin) String() string {
 	return "HASHTABLE"
 }
+
 //init function
-func (p* HashTablePlugin) Init() error {
+func (p *HashTablePlugin) Init() error {
 
 	return nil
 }
 
 //shutdown function
-func (p* HashTablePlugin) Shutdown() { }
+func (p *HashTablePlugin) Shutdown() {}

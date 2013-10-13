@@ -3,19 +3,19 @@ package main
 import (
 	redis_adapter "adapters/redis"
 	"db"
-	"logging"
 	"flag"
 	"fmt"
+	"logging"
 
+	"config"
 	"net"
 	builtin "plugins/builtin"
 	hash_table "plugins/hash_table"
 	json "plugins/json"
 	ptree "plugins/prefix_tree"
-	simple "plugins/simple"
 	repl "plugins/replication"
+	simple "plugins/simple"
 	"runtime"
-	"config"
 )
 
 ///////////////////////////////////////////////////
@@ -26,8 +26,6 @@ func main() {
 	logging.SetLevel(logging.ALL &^ logging.DEBUG)
 	logging.Critical("Running on Go %s", runtime.GOROOT())
 	runtime.GOMAXPROCS(runtime.NumCPU())
-
-
 
 	///Register all the plugins
 	ht := new(hash_table.HashTablePlugin)
@@ -40,7 +38,7 @@ func main() {
 	rep := new(repl.ReplicationPlugin)
 
 	workingDir := flag.String("dir", config.WORKING_DIRECTORY, "Database working directory")
-	port := flag.Int("port", config.LISTEN_PORT, "Listening port" )
+	port := flag.Int("port", config.LISTEN_PORT, "Listening port")
 
 	flag.Parse()
 	database := db.InitGlobalDataBase(*workingDir, true)

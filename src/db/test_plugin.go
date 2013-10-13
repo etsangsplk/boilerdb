@@ -1,33 +1,27 @@
-
 //Test plugin doing simple set/get/expire
 
 package db
 
-
 import (
+	"bytes"
 	"encoding/gob"
 	"logging"
-	"bytes"
 )
-
 
 type testStruct struct {
 	Val string
 }
 
-func (ht *testStruct)Serialize(g *gob.Encoder) error {
+func (ht *testStruct) Serialize(g *gob.Encoder) error {
 
 	err := g.Encode(ht)
 
 	return err
 }
 
-
 const T_STRING = "STRING"
 
 type testPlugin struct {
-
-
 }
 
 func HandleSET(cmd *Command, entry *Entry, session *Session) *Result {
@@ -53,7 +47,6 @@ func HandleGET(cmd *Command, entry *Entry, session *Session) *Result {
 
 func HandleEXISTS(cmd *Command, entry *Entry, session *Session) *Result {
 
-
 	return NewResult(entry != nil)
 }
 
@@ -61,15 +54,15 @@ func HandlePING(cmd *Command, entry *Entry, session *Session) *Result {
 	return NewResult("PONG")
 }
 
-func (p *testPlugin)CreateObject(commandName string) (*Entry, string) {
+func (p *testPlugin) CreateObject(commandName string) (*Entry, string) {
 
-	ret := &Entry{ Value: &testStruct{} }
+	ret := &Entry{Value: &testStruct{}}
 
-return ret, T_STRING
+	return ret, T_STRING
 }
 
 //deserialize and create a db entry
-func (p *testPlugin)LoadObject(buf []byte, typeName string) *Entry {
+func (p *testPlugin) LoadObject(buf []byte, typeName string) *Entry {
 
 	if typeName == T_STRING {
 		var s testStruct
@@ -81,67 +74,62 @@ func (p *testPlugin)LoadObject(buf []byte, typeName string) *Entry {
 			return nil
 		}
 
-		return &Entry{ Value: &s }
+		return &Entry{Value: &s}
 
+	} else {
+		logging.Warning("Could not load value, invalid type %d", typeName)
+	}
+	return nil
 
-} else {
-logging.Warning("Could not load value, invalid type %d", typeName)
 }
-return nil
-
-}
-
 
 // Get the plugin manifest for the simple plugin
-func (p *testPlugin)GetManifest() PluginManifest {
+func (p *testPlugin) GetManifest() PluginManifest {
 
-	return PluginManifest {
+	return PluginManifest{
 
-	Name: "TESTUNG",
-	Types: []string{ T_STRING, },
-		Commands:  []CommandDescriptor {
+		Name:  "TESTUNG",
+		Types: []string{T_STRING},
+		Commands: []CommandDescriptor{
 			CommandDescriptor{
 				CommandName: "SET",
-				MinArgs: 1,	MaxArgs: 1,
-				Handler: HandleSET,
+				MinArgs:     1, MaxArgs: 1,
+				Handler:     HandleSET,
 				CommandType: CMD_WRITER,
 			},
 			CommandDescriptor{
 				CommandName: "GET",
-				MinArgs: 0,	MaxArgs: 0,
-				Handler: HandleGET,
+				MinArgs:     0, MaxArgs: 0,
+				Handler:     HandleGET,
 				CommandType: CMD_READER,
 			},
 			CommandDescriptor{
 				CommandName: "PING",
-				MinArgs: 0,	MaxArgs: 0,
-				Handler: HandlePING,
+				MinArgs:     0, MaxArgs: 0,
+				Handler:     HandlePING,
 				CommandType: CMD_READER,
 			},
 			CommandDescriptor{
 				CommandName: "EXISTS",
-				MinArgs: 0,	MaxArgs: 0,
-				Handler: HandleEXISTS,
+				MinArgs:     0, MaxArgs: 0,
+				Handler:     HandleEXISTS,
 				CommandType: CMD_READER,
 			},
 		},
-
-
-}
+	}
 
 }
+
 // String representation of the plugin to support %s formatting
-func (p* testPlugin) String() string {
+func (p *testPlugin) String() string {
 	return "TESTUNG"
 }
 
 //init function
-func (p* testPlugin) Init() error {
+func (p *testPlugin) Init() error {
 
 	return nil
 }
 
 //shutdown function
-func (p* testPlugin) Shutdown() { }
-
-
+func (p *testPlugin) Shutdown() {}

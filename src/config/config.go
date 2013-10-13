@@ -7,24 +7,24 @@
  */
 
 package config
+
 import (
 //	goconf "code.google.com/p/goconf/conf"
 //	"camlistore.org/pkg/serverconfig"
 
 //"reflect"
-	)
+)
 
 var (
 	//where we'll save the dump files
-	WORKING_DIRECTORY     = "/tmp"
+	WORKING_DIRECTORY = "/tmp"
 
 	//the buffer on the input and output channels of sessions
-	IN_CHAN_BUFSIZE   int = 200
-	OUT_CHAN_BUFSIZE  int = 100
+	IN_CHAN_BUFSIZE  int = 200
+	OUT_CHAN_BUFSIZE int = 100
 
 	//the buffer on a command sink's channel
 	SINK_CHANNEL_SIZE = 100
-
 
 	// save every N seconds if the database has changed
 	// set to 0 for no saving
@@ -38,6 +38,5 @@ var (
 )
 
 func init() {
-
 
 }
