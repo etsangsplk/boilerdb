@@ -6,21 +6,19 @@ import (
 	"strings"
 )
 
-//the command struct
+// Command struct is a command, its key, and its args
 type Command struct {
 	Command string
 	Key     string
 	Args    [][]byte
 }
 
-// Create a new command object
+// NewCommand creates a new command object
 func NewCommand(cmd, key string, args ...[]byte) *Command {
-
 	return &Command{cmd, key, args}
-
 }
 
-// Check if a command has an argument (e.g. "WITHSCORES").
+// HasArg checks if a command has an argument (e.g. "WITHSCORES").
 // case insensitive
 func (cmd *Command) HasArg(s string) bool {
 	for i := range cmd.Args {
@@ -33,8 +31,8 @@ func (cmd *Command) HasArg(s string) bool {
 
 }
 
+// ToString converts a Command to a string
 func (cmd *Command) ToString() string {
-
 	keyStr := ""
 	argStr := ""
 
@@ -46,5 +44,4 @@ func (cmd *Command) ToString() string {
 	}
 
 	return fmt.Sprintf("%s%s%s", cmd.Command, keyStr, argStr)
-
 }
