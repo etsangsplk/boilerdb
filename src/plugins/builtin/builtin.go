@@ -9,9 +9,10 @@ import (
 
 	//	"runtime"
 	"fmt"
-	"logging"
 	"strconv"
 	"time"
+
+	log "github.com/llimllib/loglevel"
 )
 
 const BUILTIN = "BUILTIN"
@@ -35,7 +36,7 @@ func HandleMONITOR(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Re
 		defer func() {
 			e := recover()
 			if e != nil {
-				logging.Info("Could not send command to session outchan: %s", e)
+				log.Infof("Could not send command to session outchan: %s", e)
 				sink.Close()
 			}
 
@@ -90,7 +91,7 @@ func HandleSAVE(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 		return db.NewResult(db.NewStatus("OK"))
 	}
 
-	logging.Info("Error saving db: %s", err)
+	log.Infof("Error saving db: %s", err)
 
 	return db.NewResult(db.NewError(db.E_UNKNOWN_ERROR))
 }
@@ -142,7 +143,7 @@ keys: %d
 		db.DB.BGsaveInProgress,
 		db.DB.Size(),
 	)
-	logging.Info("Server stats: %s", ret)
+	log.Infof("Server stats: %s", ret)
 	return db.NewResult(ret)
 
 }

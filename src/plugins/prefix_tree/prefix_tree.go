@@ -10,8 +10,9 @@ import (
 	"db"
 	gob "encoding/gob"
 	"fmt"
-	"logging"
 	"strconv"
+
+	log "github.com/llimllib/loglevel"
 )
 
 type PrefixTree struct {
@@ -146,14 +147,14 @@ func (p *PrefixTreePlugin) LoadObject(buf []byte, t string) *db.Entry {
 		dec := gob.NewDecoder(buffer)
 		err := dec.Decode(&pt)
 		if err != nil {
-			logging.Info("Could not deserialize oject: %s", err)
+			log.Infof("Could not deserialize oject: %s", err)
 			return nil
 		}
 
 		return &db.Entry{Value: &pt}
 
 	}
-	logging.Info("Invalid type %s. Could not deserialize", t)
+	log.Infof("Invalid type %s. Could not deserialize", t)
 	return nil
 }
 

@@ -1,12 +1,8 @@
 package prefix_tree
 
 import (
-	//"camlistore.org/pkg/lru"
 	"container/heap"
 	"container/list"
-
-	//"fmt"
-
 )
 
 type Record struct {

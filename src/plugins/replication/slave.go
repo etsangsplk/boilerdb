@@ -8,11 +8,12 @@ import (
 	"db"
 	"encoding/gob"
 	"fmt"
-	"logging"
 	"net"
 	"strconv"
 	"strings"
 	"time"
+
+	log "github.com/llimllib/loglevel"
 )
 
 const (
@@ -51,19 +52,19 @@ func (m *Master) Connect() error {
 
 	//make sure we don't connect without disconnecting
 	if m.State != STATE_OFFLINE {
-		logging.Warning("Could not connect to a connected master!")
+		log.Warnf("Could not connect to a connected master!")
 		return fmt.Errorf("Trying to connect to an already connected master")
 	}
 
 	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", m.Host, m.Port))
 	if err != nil {
-		logging.Error("Could not connect to master %s: %s", m, err)
+		log.Errorf("Could not connect to master %s: %s", m, err)
 		return err
 	}
 	m.Conn = conn
 	//set the state to "pending sync"
 	m.State = STATE_PENDING_SYNC
-	logging.Info("Successfuly connected to master %s", m)
+	log.Infof("Successfuly connected to master %s", m)
 	return nil
 }
 
@@ -73,11 +74,11 @@ func (m *Master) Disconnect() error {
 	m.State = STATE_OFFLINE
 	err := m.Conn.Close()
 	if err != nil {
-		logging.Warning("Could not close conection to master: %s", err)
+		log.Warnf("Could not close conection to master: %s", err)
 		return err
 	}
 
-	logging.Info("Disconnected master %s", m)
+	log.Infof("Disconnected master %s", m)
 
 	return nil
 }
@@ -90,7 +91,7 @@ func (m *Master) RunReplication() {
 	defer func() {
 		err := recover()
 		if err != nil {
-			logging.Error("Errro running replication loop! %s", err)
+			log.Errorf("Errro running replication loop! %s", err)
 			disconnectMaster()
 
 		}
@@ -115,18 +116,18 @@ func (m *Master) RunReplication() {
 		//got a status - could be OK and could be
 		if cmd.Command[0] == '+' {
 			if cmd.Command == SYNC_OK_MESSAGE {
-				logging.Info("Received sync ok message!")
+				log.Infof("Received sync ok message!")
 				currentMaster.State = STATE_LIVE
 
 			}
 			continue
 		} else if cmd.Command[0] == '-' {
-			logging.Warning("Got error message as command: %s", cmd.Command)
+			log.Warnf("Got error message as command: %s", cmd.Command)
 			continue
 		} else {
 			_, er := db.DB.HandleCommand(cmd, mockSession)
 			if er != nil {
-				logging.Warning("Error handling command: %s", er)
+				log.Warnf("Error handling command: %s", er)
 			}
 		}
 
@@ -147,7 +148,7 @@ func disconnectMaster() {
 	defer func() {
 		e := recover()
 		if e != nil {
-			logging.Error("Could not disconnect master: %s", e)
+			log.Errorf("Could not disconnect master: %s", e)
 			currentMaster = nil
 		}
 
@@ -156,10 +157,10 @@ func disconnectMaster() {
 
 		err := currentMaster.Disconnect()
 		if err != nil {
-			logging.Warning("Could not close conection to master: %s", err)
+			log.Warnf("Could not close conection to master: %s", err)
 		}
 		currentMaster = nil
-		logging.Info("Disconnected master")
+		log.Infof("Disconnected master")
 	}
 
 }
@@ -167,16 +168,16 @@ func disconnectMaster() {
 // Connect to a new master
 func connectToMaster(host string, port int) error {
 
-	logging.Info("Connecting to master %s:%d", host, port)
+	log.Infof("Connecting to master %s:%d", host, port)
 	//check to see if we already have a master
 	if currentMaster != nil {
 		if currentMaster.Host == host && currentMaster.Port == port {
-			logging.Warning("Cannot connect to the same master")
+			log.Warnf("Cannot connect to the same master")
 			return fmt.Errorf("Trying to reconnect to the current master %s", currentMaster)
 		}
 
 		//disconnect from the current one first
-		logging.Info("Disconnecting from current master first...")
+		log.Infof("Disconnecting from current master first...")
 		disconnectMaster()
 
 	}
@@ -190,7 +191,7 @@ func connectToMaster(host string, port int) error {
 
 	err := m.Connect()
 	if err == nil {
-		logging.Info("Setting new master to %s", m)
+		log.Infof("Setting new master to %s", m)
 		currentMaster = m
 	} else {
 		return err
@@ -224,13 +225,13 @@ func (m *Master) ReadValue(buf []byte) {
 func HandleLOAD(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 
 	if currentMaster == nil {
-		logging.Error("Got load while not connected to a master!")
+		log.Errorf("Got load while not connected to a master!")
 		return db.NewResult(db.NewError(db.E_PLUGIN_ERROR))
 	}
 
 	l, e := strconv.Atoi(string(cmd.Args[1]))
 	if e != nil {
-		logging.Error("Could not read entry len: %s", e)
+		log.Errorf("Could not read entry len: %s", e)
 		return nil
 	}
 
@@ -244,7 +245,7 @@ func HandleLOAD(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 	err := db.DB.LoadSerializedEntry(&se)
 	if err != nil {
 
-		logging.Error("Error loading entry: %s", e)
+		log.Errorf("Error loading entry: %s", e)
 	}
 
 	return nil
@@ -253,18 +254,18 @@ func HandleLOAD(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 //this is a coroutine that checks the current master state and restarts it if it has failed
 func runMasterWatchdogLoop() {
 
-	logging.Info("Running replication watchdog loop!")
+	log.Infof("Running replication watchdog loop!")
 	for {
 		if currentMaster != nil {
 
-			logging.Info("Checking current master: %s", currentMaster)
+			log.Infof("Checking current master: %s", currentMaster)
 			if currentMaster.State == STATE_OFFLINE {
 				err := currentMaster.Connect()
 				if err == nil {
-					logging.Info("Reconnected current master %s", *currentMaster)
+					log.Infof("Reconnected current master %s", *currentMaster)
 					go currentMaster.RunReplication()
 				} else {
-					logging.Warning("Could not connect to current master %s: %s", *currentMaster, err)
+					log.Warnf("Could not connect to current master %s: %s", *currentMaster, err)
 				}
 
 			}
@@ -278,7 +279,7 @@ func runMasterWatchdogLoop() {
 //drop the current master and stop trying...
 func leaveCurrentMaster() {
 
-	logging.Info("Disconnecting from current master %s", currentMaster)
+	log.Infof("Disconnecting from current master %s", currentMaster)
 
 	disconnectMaster()
 
@@ -286,7 +287,7 @@ func leaveCurrentMaster() {
 
 func HandleSLAVEOF(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Result {
 	address := cmd.Key
-	logging.Info("Got slaveof to %s %s", cmd.Key, cmd.Args[0])
+	log.Infof("Got slaveof to %s %s", cmd.Key, cmd.Args[0])
 
 	if strings.ToUpper(cmd.Key) == "NO" && bytes.Equal(bytes.ToUpper(cmd.Args[0]), []byte("ONE")) {
 		leaveCurrentMaster()
@@ -302,7 +303,7 @@ func HandleSLAVEOF(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Re
 	err = connectToMaster(address, port)
 
 	if err != nil {
-		logging.Warning("Aborting master connection: %s", err)
+		log.Warnf("Aborting master connection: %s", err)
 		return db.NewResult(db.NewPluginError("REPLICATION", fmt.Sprintf("Could not connect to master: %s", err)))
 	}
 

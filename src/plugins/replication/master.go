@@ -4,17 +4,11 @@ import (
 	"config"
 	"container/list"
 	"db"
-	"sync"
-	//	"net"
 	"errors"
-	"logging"
-	//	"strconv"
 	"fmt"
+	"sync"
 
-//	"strings"
-//	"bytes"
-//	"bufio"
-
+	log "github.com/llimllib/loglevel"
 )
 
 //This represents the status of a slave in  the master
@@ -49,7 +43,7 @@ func NewSlave(session *db.Session) *Slave {
 		buffer:        list.New(),
 		Channel:       make(chan []byte, 1000),
 	}
-	logging.Info("Created new slave for session %s", *session)
+	log.Infof("Created new slave for session %s", *session)
 
 	ret.sink = db.DB.AddSink(
 		db.CMD_WRITER,
@@ -90,7 +84,7 @@ func (s *Slave) Send(se *db.SerializedEntry) error {
 
 func (s *Slave) Sync() error {
 
-	logging.Info("Starting sync for slave %s", s)
+	log.Infof("Starting sync for slave %s", s)
 	numRetries := 0
 
 	for numRetries < config.MAX_SYNC_RETRIES {
@@ -111,24 +105,24 @@ func (s *Slave) Sync() error {
 
 				if se != nil {
 					//encode it
-					logging.Debug("Read entry %s", se.Key)
+					log.Debugf("Read entry %s", se.Key)
 
 					e := s.Send(se)
 					if e != nil {
-						logging.Warning("Error serializing enty: %s", e)
+						log.Warnf("Error serializing enty: %s", e)
 					}
 				} else {
 					break
 				}
 			}
 
-			logging.Info("Finished writing database to slave.")
+			log.Infof("Finished writing database to slave.")
 		}()
 
 		err := db.DB.DumpEntries(ch, true)
 		close(ch)
 		if err != nil {
-			logging.Warning("Failed to sync slave: %s", err)
+			log.Warnf("Failed to sync slave: %s", err)
 			numRetries++
 		}
 		break
@@ -136,7 +130,7 @@ func (s *Slave) Sync() error {
 	}
 	//now send the pending slave buffer if needed
 
-	logging.Info("Slave backlog buffer now %d entries, sending them first...", s.buffer.Len())
+	log.Infof("Slave backlog buffer now %d entries, sending them first...", s.buffer.Len())
 	for s.buffer.Len() > 0 {
 
 		elem := s.buffer.Front()
@@ -146,14 +140,14 @@ func (s *Slave) Sync() error {
 
 			s.session.Send(db.NewResult(cmd))
 		} else {
-			logging.Warning("Could not pop entry from slave %s buffer", s)
+			log.Warnf("Could not pop entry from slave %s buffer", s)
 		}
 
 	}
 	s.lock.Lock()
 	s.State = STATE_LIVE
 	s.lock.Unlock()
-	logging.Info("Finished sending slave backlog buffer")
+	log.Infof("Finished sending slave backlog buffer")
 
 	//send the "sync ok" message to signal the sync state has ended
 	s.session.Send(db.NewResult(SYNC_OK_MESSAGE))
@@ -171,7 +165,7 @@ func (s *Slave) bufferCommand(cmd *db.Command) error {
 	//if the buffer is not full...
 	if s.buffer.Len() < MAX_BUFFER {
 		s.buffer.PushBack(cmd)
-		logging.Info("Buffered command %s to slave, buffer now %d", cmd, s.buffer.Len())
+		log.Infof("Buffered command %s to slave, buffer now %d", cmd, s.buffer.Len())
 		return nil
 	}
 
@@ -196,7 +190,7 @@ func (s *Slave) StartReplication() error {
 		//sync the slave in a separate goroutine
 		err := s.Sync()
 		if err != nil {
-			logging.Warning("Could not sync slave %s! %s", s, err)
+			log.Warnf("Could not sync slave %s! %s", s, err)
 			removeSlave(s)
 			return
 		}
@@ -215,14 +209,14 @@ func (s *Slave) StartReplication() error {
 
 				//for offline - we raise a cry!
 				case STATE_OFFLINE:
-					logging.Error("Trying to send a command to an offline slave! Aborting replication")
+					log.Errorf("Trying to send a command to an offline slave! Aborting replication")
 					panic("Pushing commands to an offline slave")
 
 				//buffer the command for pending sync slaves
 				default:
 					err := s.bufferCommand(cmd)
 					if err != nil {
-						logging.Error("Aborting replication - buffer full!")
+						log.Errorf("Aborting replication - buffer full!")
 						panic(err)
 					}
 
@@ -231,7 +225,7 @@ func (s *Slave) StartReplication() error {
 			}
 
 		}
-		logging.Info("finishing session for slave %s", s.session.Id())
+		log.Infof("finishing session for slave %s", s.session.Id())
 		removeSlave(s)
 	}()
 
@@ -245,7 +239,7 @@ func (s *Slave) Disconnect() error {
 
 	if s.State != STATE_OFFLINE {
 		s.State = STATE_OFFLINE
-		logging.Info("Disconnecting slave %s", *s)
+		log.Infof("Disconnecting slave %s", *s)
 		s.session.Stop()
 		s.sink.Close()
 		return nil
@@ -269,13 +263,13 @@ func addSlave(session *db.Session) error {
 
 	slave := NewSlave(session)
 	slaves[session.Id()] = slave
-	logging.Info("Added slave for session %s, currently replicating to %d slaves", session.Id(), len(slaves))
+	log.Infof("Added slave for session %s, currently replicating to %d slaves", session.Id(), len(slaves))
 
 	replicationLock.Unlock()
 	err := slave.StartReplication()
 	if err != nil {
 
-		logging.Warning("Could not replicate to slave %s! %s", slave.session.Id(), err)
+		log.Warnf("Could not replicate to slave %s! %s", slave.session.Id(), err)
 		removeSlave(slave)
 		return err
 	}
@@ -299,7 +293,7 @@ func HandleSYNC(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 	err := addSlave(session)
 
 	if err != nil {
-		logging.Warning("Aborting SYNC: %s", err)
+		log.Warnf("Aborting SYNC: %s", err)
 		return db.NewResult(db.NewPluginError("REPLICATION", "Could not sync slave"))
 	}
 

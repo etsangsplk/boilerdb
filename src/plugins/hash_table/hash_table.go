@@ -9,7 +9,8 @@ import (
 	"bytes"
 	"db"
 	gob "encoding/gob"
-	"logging"
+
+	log "github.com/llimllib/loglevel"
 )
 
 type HashTableStruct struct {
@@ -63,14 +64,14 @@ func (p *HashTablePlugin) LoadObject(buf []byte, t string) *db.Entry {
 		dec := gob.NewDecoder(buffer)
 		err := dec.Decode(&ht)
 		if err != nil {
-			logging.Info("Could not deserialize oject: %s", err)
+			log.Infof("Could not deserialize oject: %s", err)
 			return nil
 		}
 
 		return &db.Entry{Value: &ht}
 
 	}
-	logging.Error("Invalid type %u. Could not deserialize", t)
+	log.Errorf("Invalid type %u. Could not deserialize", t)
 	return nil
 }
 

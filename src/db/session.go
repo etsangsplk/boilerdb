@@ -3,10 +3,11 @@ package db
 import (
 	"config"
 	"fmt"
-	"logging"
 	"net"
 	"runtime/debug"
 	"sync"
+
+	log "github.com/llimllib/loglevel"
 )
 
 type Session struct {
@@ -50,7 +51,7 @@ func (s *Session) Run() {
 	defer func() {
 		e := recover()
 		if e != nil {
-			logging.Info("Error running session: %s", e)
+			log.Infof("Error running session: %s", e)
 			debug.PrintStack()
 
 		}
@@ -65,7 +66,7 @@ func (s *Session) Run() {
 				defer func() {
 					e := recover()
 					if e != nil {
-						logging.Error("Runtime erro in plugin: %s. Stack: %s", e, debug.Stack())
+						log.Errorf("Runtime erro in plugin: %s. Stack: %s", e, debug.Stack())
 
 						s.outChan <- NewResult(NewPluginError("", fmt.Sprintf("%s", e)))
 					}
@@ -80,7 +81,7 @@ func (s *Session) Run() {
 
 	}
 
-	logging.Info("Stopped Session %s....\n", s.Addr)
+	log.Infof("Stopped Session %s....\n", s.Addr)
 }
 
 // Send a result down a sessions out channel in a safe way
@@ -95,7 +96,7 @@ func (s *Session) Send(res *Result) {
 		}
 
 	}
-	logging.Warning("Sending a command down a dead/invalid session %s", s)
+	log.Warnf("Sending a command down a dead/invalid session %s", s)
 
 }
 
@@ -119,7 +120,7 @@ func (s *Session) Stop() {
 	defer s.lock.Unlock()
 
 	if s.IsRunning {
-		logging.Info("Stopping Session %s....\n", s.Addr)
+		log.Infof("Stopping Session %s....\n", s.Addr)
 		s.IsRunning = false
 		s.db.RemoveSink(s.Id())
 		s.db.Stats.ActiveSessions--

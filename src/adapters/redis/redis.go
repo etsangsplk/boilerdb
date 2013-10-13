@@ -16,12 +16,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
-	"logging"
 	"net"
 	"reflect"
 	"runtime/debug"
 	"strconv"
+
+	log "github.com/llimllib/loglevel"
 )
 
 type RedisAdapter struct {
@@ -42,7 +42,7 @@ func (r *RedisAdapter) Listen(addr net.Addr) error {
 		return err
 	}
 
-	logging.Info("Redis adapter listening on %s", addr)
+	log.Infof("Redis adapter listening on %s", addr)
 	r.listener = listener
 	return nil
 }
@@ -103,7 +103,7 @@ func SerializeResponse(res interface{}, writer io.Writer) error {
 		for i := 0; i < l; i++ {
 			err := SerializeResponse(arr[i], writer)
 			if err != nil {
-				logging.Panic("Could not serialize response: %s", err)
+				log.Panicf("Could not serialize response: %s", err)
 			}
 		}
 
@@ -132,7 +132,7 @@ func SerializeResponse(res interface{}, writer io.Writer) error {
 		for i := 0; i < len(cmd.Args); i++ {
 			err := SerializeResponse(string(cmd.Args[i]), writer)
 			if err != nil {
-				logging.Panic("Could not serialize response: %s", err)
+				log.Panicf("Could not serialize response: %s", err)
 			}
 		}
 
@@ -158,7 +158,7 @@ func SerializeResponse(res interface{}, writer io.Writer) error {
 
 	default:
 		writer.Write([]byte(fmt.Sprintf("-ERR Unknown type '%s'\r\n")))
-		logging.Error("Unknown type '%s'. Could not serialize", reflect.TypeOf(res))
+		log.Errorf("Unknown type '%s'. Could not serialize", reflect.TypeOf(res))
 		return fmt.Errorf("Unknown type '%s'. Could not serialize", reflect.TypeOf(res))
 
 	}
@@ -185,7 +185,7 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 			defer func() {
 				ee := recover()
 				if ee != nil {
-					logging.Error("Error handling error :) %s", ee)
+					log.Errorf("Error handling error :) %s", ee)
 				}
 			}()
 
@@ -194,7 +194,7 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 			c.Close()
 
 			if *err != io.EOF && *err != ReadError {
-				logging.Error("Error processing command: %s\n", e)
+				log.Errorf("Error processing command: %s\n", e)
 				debug.PrintStack()
 
 			}
@@ -217,7 +217,7 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 			}
 
 		}
-		logging.Debug("Stopping Serializer....\n")
+		log.Debug("Stopping Serializer....\n")
 	}()
 
 	//the request reading loop
@@ -227,7 +227,7 @@ func (r *RedisAdapter) HandleConnection(c *net.TCPConn) error {
 		cmd, err := ReadRequest(reader)
 
 		if err != nil {
-			logging.Info("Quitting!", err)
+			log.Info("Quitting!", err)
 			break
 
 		} else {
@@ -359,7 +359,7 @@ func readToCRLF(r *bufio.Reader) []byte {
 
 	buf, _, e := r.ReadLine()
 	if e != nil {
-		logging.Warning("Error reading to crlf: %s", e)
+		log.Warnf("Error reading to crlf: %s", e)
 		panic(ReadError)
 	}
 
@@ -368,7 +368,7 @@ func readToCRLF(r *bufio.Reader) []byte {
 	var b byte
 	b, e = r.ReadByte()
 	if e != nil {
-		logging.Info("readToCRLF - ReadByte", e)
+		log.Info("readToCRLF - ReadByte", e)
 		panic(ReadError)
 	}
 	if b != lf_byte {

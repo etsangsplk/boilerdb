@@ -5,7 +5,8 @@ package db
 import (
 	"bytes"
 	"encoding/gob"
-	"logging"
+
+	log "github.com/llimllib/loglevel"
 )
 
 type testStruct struct {
@@ -29,7 +30,7 @@ func HandleSET(cmd *Command, entry *Entry, session *Session) *Result {
 	obj := entry.Value.(*testStruct)
 	obj.Val = string(cmd.Args[0])
 
-	logging.Info("Setting key %s to %s", cmd.Key, obj.Val)
+	log.Infof("Setting key %s to %s", cmd.Key, obj.Val)
 	return NewResult(NewStatus("OK"))
 
 }
@@ -70,14 +71,14 @@ func (p *testPlugin) LoadObject(buf []byte, typeName string) *Entry {
 		dec := gob.NewDecoder(buffer)
 		err := dec.Decode(&s)
 		if err != nil {
-			logging.Info("Could not deserialize oject: %s", err)
+			log.Infof("Could not deserialize oject: %s", err)
 			return nil
 		}
 
 		return &Entry{Value: &s}
 
 	} else {
-		logging.Warning("Could not load value, invalid type %d", typeName)
+		log.Warnf("Could not load value, invalid type %d", typeName)
 	}
 	return nil
 

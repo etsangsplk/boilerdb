@@ -5,7 +5,6 @@ import (
 	"db"
 	"flag"
 	"fmt"
-	"logging"
 
 	"config"
 	"net"
@@ -16,13 +15,14 @@ import (
 	repl "plugins/replication"
 	simple "plugins/simple"
 	"runtime"
+
+	log "github.com/llimllib/loglevel"
 )
 
 func main() {
-
-	//logging.SetLevel(logging.ERROR | logging.WARN | logging.CRITICAL | logging.INFO)
-	logging.SetLevel(logging.ALL &^ logging.DEBUG)
-	logging.Critical("Running on Go %s", runtime.GOROOT())
+	log.SetPriority(log.Pdebug)
+	log.SetFlags(log.LstdFlags | log.Lpriority)
+	log.Infof("Running on Go %s", runtime.GOROOT())
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	///Register all the plugins
@@ -43,9 +43,7 @@ func main() {
 
 	database.RegisterPlugins(ht, smp, ptree, builtin, js, rep)
 
-	//
-
-	if true {
+	for {
 		adap := redis_adapter.RedisAdapter{}
 
 		adap.Init(database)
@@ -54,14 +52,11 @@ func main() {
 		err := adap.Listen(addr)
 
 		if err != nil {
-
-			logging.Panic("Could not start adapter: %s", err)
+			log.Panicf("Could not start adapter: %s", err)
 			return
 		}
 
-		logging.Info("Starting adapter...")
+		log.Info("Starting adapter...")
 		adap.Start()
-
 	}
-
 }

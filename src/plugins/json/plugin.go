@@ -16,8 +16,9 @@ import (
 	gob "encoding/gob"
 	"encoding/json"
 	"fmt"
-	"logging"
 	"strings"
+
+	log "github.com/llimllib/loglevel"
 )
 
 const T_JSON string = "JSON"
@@ -48,7 +49,7 @@ func HandleJSET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 	dec := json.NewDecoder(strings.NewReader(string(cmd.Args[1])))
 	err := dec.Decode(&data)
 	if err != nil {
-		logging.Info("Error decoding data: %s (%s)", err, string(cmd.Args[1]))
+		log.Infof("Error decoding data: %s (%s)", err, string(cmd.Args[1]))
 		return db.NewResult(db.NewPluginError("JSON", fmt.Sprintf("Invalid JSON: %s", err)))
 	}
 
@@ -63,7 +64,7 @@ func HandleJSET(cmd *db.Command, entry *db.Entry, session *db.Session) *db.Resul
 	if err == nil {
 		return db.NewResult("OK")
 	}
-	logging.Warning("Unable to set: %s", err)
+	log.Warnf("Unable to set: %s", err)
 	return db.NewResult(db.NewPluginError("JSON", fmt.Sprintf("Could not set: %s", err)))
 
 }
@@ -118,14 +119,14 @@ func (p *JSONPlugin) LoadObject(buf []byte, t string) *db.Entry {
 		dec := gob.NewDecoder(buffer)
 		err := dec.Decode(&s)
 		if err != nil {
-			logging.Warning("Could not deserialize oject: %s", err)
+			log.Warnf("Could not deserialize oject: %s", err)
 			return nil
 		}
 
 		return &db.Entry{Value: &s}
 
 	} else {
-		logging.Error("Could not load object - invalid type %s", t)
+		log.Errorf("Could not load object - invalid type %s", t)
 	}
 
 	return nil

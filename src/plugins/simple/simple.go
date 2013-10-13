@@ -9,7 +9,8 @@ import (
 	//	"io"
 	"bytes"
 	gob "encoding/gob"
-	"logging"
+
+	log "github.com/llimllib/loglevel"
 )
 
 type SimpleStruct struct {
@@ -73,14 +74,14 @@ func (p *SimplePlugin) LoadObject(buf []byte, typeName string) *db.Entry {
 		dec := gob.NewDecoder(buffer)
 		err := dec.Decode(&s)
 		if err != nil {
-			logging.Info("Could not deserialize oject: %s", err)
+			log.Infof("Could not deserialize oject: %s", err)
 			return nil
 		}
 
 		return &db.Entry{Value: &s}
 
 	} else {
-		logging.Warning("Could not load value, invalid type %d", typeName)
+		log.Warnf("Could not load value, invalid type %d", typeName)
 	}
 	return nil
 
