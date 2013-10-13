@@ -1,5 +1,6 @@
 BIN=$(GOPATH)/bin
 GOFILES=src/*/*.go src/*/*/*.go
+PACKAGES=adapters adapters/redis config db logging main plugins/builtin plugins/hash_table plugins/json plugins/prefix_tree plugins/replication plugins/simple plugins util
 
 $(BIN)/boilerdb: *.go
 	go get main
@@ -23,7 +24,7 @@ format:
 
 lint:
 	go get github.com/golang/lint/golint
-	$(BIN)/golint *.go
-	go vet
+	$(BIN)/golint $(GOFILES)
+	go vet $(PACKAGES)
 
 .PHONY: test format lint
