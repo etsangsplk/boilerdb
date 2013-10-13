@@ -292,7 +292,7 @@ func InitGlobalDataBase(workingDir string, loadDump bool) *DataBase {
 	}
 
 	//start the side goroutine for auto-saving the databse
-	if config.BGSAVE_SECONDS > 0 {
+	if config.BgsaveSeconds > 0 {
 		go DB.autoPersist()
 	}
 	return DB
@@ -329,7 +329,7 @@ func (db *DataBase) autoPersist() {
 		now := time.Now()
 		log.Infof("Checking persistence... %d changes since %s", DB.changesSinceLastSave, now.Sub(DB.LastSaveTime))
 		//if we need to save the DB - let's do it!
-		if DB.LastSaveTime.Add(time.Second * time.Duration(config.BGSAVE_SECONDS)).Before(now) {
+		if DB.LastSaveTime.Add(time.Second * time.Duration(config.BgsaveSeconds)).Before(now) {
 			if DB.changesSinceLastSave > 0 {
 				log.Infof("AutoSaving Database, %d changes in %s", DB.changesSinceLastSave, now.Sub(DB.LastSaveTime))
 
@@ -339,9 +339,9 @@ func (db *DataBase) autoPersist() {
 			}
 		}
 
-		log.Infof("Sleeping for %s", time.Second*time.Duration(config.BGSAVE_SECONDS))
+		log.Infof("Sleeping for %s", time.Second*time.Duration(config.BgsaveSeconds))
 		// sleep until next bgsave check
-		time.Sleep(time.Second * time.Duration(config.BGSAVE_SECONDS))
+		time.Sleep(time.Second * time.Duration(config.BgsaveSeconds))
 
 	}
 }
@@ -389,7 +389,7 @@ func (db *DataBase) AddSink(flags int, id string) *CommandSink {
 
 	log.Infof("Adding sink for session %s", id)
 	sink := &CommandSink{
-		make(chan *Command, config.SINK_CHANNEL_SIZE),
+		make(chan *Command, config.SinkChannelSize),
 		flags,
 		sync.Mutex{},
 	}

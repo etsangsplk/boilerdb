@@ -36,8 +36,8 @@ func main() {
 	js := new(json.JSONPlugin)
 	rep := new(repl.ReplicationPlugin)
 
-	workingDir := flag.String("dir", config.WORKING_DIRECTORY, "Database working directory")
-	port := flag.Int("port", config.LISTEN_PORT, "Listening port")
+	workingDir := flag.String("dir", config.WorkingDirectory, "Database working directory")
+	port := flag.Int("port", config.ListenPort, "Listening port")
 
 	flag.Parse()
 	database := db.InitGlobalDataBase(*workingDir, true)

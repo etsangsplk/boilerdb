@@ -34,8 +34,8 @@ func (db *DataBase) NewSession(addr net.Addr) *Session {
 	db.Stats.TotalSessions++
 
 	ret := &Session{
-		InChan:    make(chan *Command, config.IN_CHAN_BUFSIZE),
-		outChan:   make(chan *Result, config.OUT_CHAN_BUFSIZE),
+		InChan:    make(chan *Command, config.InChanBufsize),
+		outChan:   make(chan *Result, config.OutChanBufsize),
 		db:        db,
 		Addr:      addr,
 		IsRunning: true,

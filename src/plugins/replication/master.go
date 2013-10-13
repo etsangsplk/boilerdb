@@ -87,7 +87,7 @@ func (s *Slave) Sync() error {
 	log.Infof("Starting sync for slave %s", s)
 	numRetries := 0
 
-	for numRetries < config.MAX_SYNC_RETRIES {
+	for numRetries < config.MaxSyncRetries {
 		ch := make(chan *db.SerializedEntry)
 		go func() {
 			//			defer func() {
